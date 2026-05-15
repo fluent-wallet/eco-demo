@@ -1,26 +1,20 @@
 # TODO
 
-## Near Term
+## Next
 
-- Confirm the 4337 guide modal copy and first-open behavior with product expectations.
-- Consider adding a visible “reset guide prompt” action only if users need to re-enable first-open behavior during testing.
-- Decide whether root README should be Chinese, English, or bilingual.
+- Verify the new demo home links work under GitHub Pages subpath deployment; current code uses absolute `/`
+- Confirm 4337 guide modal copy, first-open behavior, and whether a visible reset entry is needed
+- Decide root README language policy: Chinese, English, or bilingual
 
-## Maintenance
+## Engineering
 
-- When adding a demo, update both local dev routing and GitHub Pages build routing.
-- Keep app ports stable or update `scripts/dev.mjs`, root iframes, and README together.
-- Run `pnpm lint` and `pnpm build` before pushing.
+- Add post-build smoke checks for `/`, `/eip-4337/`, `/eip-7702/`
+- If more demos are added, extract shared header/panel/button primitives instead of repeating styles per app
+- Revisit 4337 bundle size only if the warning starts affecting local iteration or Pages load time
 
-## Potential Improvements
+## Constraints
 
-- Add shared UI primitives if a third demo repeats panel/modal/button patterns.
-- Add automated smoke checks for Pages routes after `pnpm build`.
-- Reduce large chunk warnings in the 4337 build if bundle size becomes a practical issue.
-
-## Known Constraints
-
-- Private-key demos must remain test-account only.
-- 4337 Simple7702 wallet flow depends on wallet support for EIP-7702 authorization signing.
-- Bundler behavior for packing multiple UserOps into one bundle transaction is implementation-dependent.
+- Private-key demos stay test-account only
+- 4337 Simple7702 wallet flow depends on wallet support for EIP-7702 authorization signing
+- Bundler packing behavior for multiple UserOps is RPC-implementation dependent
 

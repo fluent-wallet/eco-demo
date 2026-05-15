@@ -152,9 +152,14 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <h1>EIP-7702 Demo</h1>
-          <p>签名授权列表并发送 EOA 代理交易。</p>
+        <div className="topbar-left">
+          <a className="home-link" href="/">
+            返回首页
+          </a>
+          <div>
+            <h1>EIP-7702 Demo</h1>
+            <p>签名授权列表并发送 EOA 代理交易。</p>
+          </div>
         </div>
         <span className="network-badge">链 ID {chainId}</span>
       </header>

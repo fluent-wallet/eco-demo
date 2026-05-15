@@ -954,9 +954,14 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <h1>EIP-4337 + EIP-7702 Demo</h1>
-          <p>Conflux eSpace 测试网账户抽象调试台</p>
+        <div className="topbar-left">
+          <a className="home-link" href="/">
+            返回首页
+          </a>
+          <div>
+            <h1>EIP-4337 + EIP-7702 Demo</h1>
+            <p>Conflux eSpace 测试网账户抽象调试台</p>
+          </div>
         </div>
         <div className="network-badge">链 ID 71</div>
       </header>
