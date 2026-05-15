@@ -5,6 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@9.5.0",
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "dev:eip-4337": "pnpm --filter @eco-demo/eip-4337-demo dev",
     "dev:eip-7702": "pnpm --filter @eco-demo/eip-7702-demo dev",
     "build": "node scripts/build-pages.mjs",

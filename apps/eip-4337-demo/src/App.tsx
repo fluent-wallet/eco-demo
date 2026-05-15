@@ -49,10 +49,10 @@ function compact(value: string | undefined) {
 
 function StatusPill({ state }: { state: AsyncState }) {
   const label = {
-    idle: 'Idle',
-    loading: 'Working',
-    success: 'Ready',
-    error: 'Error',
+    idle: '待操作',
+    loading: '处理中',
+    success: '已完成',
+    error: '错误',
   }[state]
 
   return <span className={`pill pill-${state}`}>{label}</span>
@@ -66,25 +66,25 @@ function WalletPanel() {
   return (
     <section className="panel">
       <div className="panel-heading">
-        <h2>Wallet</h2>
-        {isConnected && <span className="pill pill-success">Connected</span>}
+        <h2>钱包</h2>
+        {isConnected && <span className="pill pill-success">已连接</span>}
       </div>
       {isConnected ? (
         <div className="stack">
           <div className="kv">
-            <span>Account</span>
+            <span>账户</span>
             <code>{address}</code>
           </div>
           <div className="kv">
-            <span>Connector</span>
+            <span>连接器</span>
             <code>{connector?.name ?? '-'}</code>
           </div>
           <div className="kv">
-            <span>Chain ID</span>
+            <span>链 ID</span>
             <code>{chainId ?? '-'}</code>
           </div>
           <button className="button secondary" onClick={() => disconnect()}>
-            Disconnect
+            断开连接
           </button>
         </div>
       ) : (
@@ -96,11 +96,47 @@ function WalletPanel() {
               key={item.uid}
               onClick={() => connect({ connector: item })}
             >
-              Connect {item.name}
+              连接 {item.name}
             </button>
           ))}
         </div>
       )}
+    </section>
+  )
+}
+
+function UsagePanel() {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <h2>使用说明</h2>
+      </div>
+      <ol className="guide-list">
+        <li>连接钱包，并确认钱包网络为 Conflux eSpace 测试网（链 ID 71）。</li>
+        <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔aa交易的发起人是智能账户还是钱包账户自身。</li>
+        <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
+        <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas， 需要提前转入。</li>
+        <li>在右侧选择单次执行或批量执行，点击“准备 UserOperation”查看请求内容。</li>
+        <li>确认请求无误后点击“发送 UserOperation”，等待 Bundler 返回 UserOp 哈希和链上交易结果。</li>
+      </ol>
+    </section>
+  )
+}
+
+function NotesPanel() {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <h2>注意事项</h2>
+      </div>
+      <ul className="guide-list">
+        <li className="guide-danger">私钥模式只用于本地调试，请勿填写主网或真实资产账户私钥。</li>
+        <li>本 demo 固定面向 Conflux eSpace 测试网，钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要保持一致。</li>
+        <li>Paymaster 赞助开启时，Paymaster 需要有余额并支持当前 UserOperation；否则会在发送阶段失败。</li>
+        <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
+        <li>如果钱包还没有授权给其他智能账户，尝试7702流程时需要先去7702demo进行授权；或者Owner 签名方式使用私钥，会在aa交易里带上授权信息同时完成授权和userOp执行。</li>
+        <li>“准备 UserOperation”只构造和签名请求，不会上链；“发送 UserOperation”才会提交到 Bundler。</li>
+      </ul>
     </section>
   )
 }
@@ -139,10 +175,10 @@ function ConfigPanel({
   return (
     <section className="panel">
       <div className="panel-heading">
-        <h2>Runtime Config</h2>
+        <h2>运行配置</h2>
       </div>
       <label className="field">
-        <span>Bundler RPC URL</span>
+        <span>Bundler RPC 地址</span>
         <input
           value={bundlerUrl}
           onChange={(event) => setBundlerUrl(event.target.value)}
@@ -157,13 +193,13 @@ function ConfigPanel({
         />
       </label>
       <label className="field">
-        <span>Paymaster sponsorship</span>
+        <span>Paymaster 赞助</span>
         <select
           value={usePaymaster ? 'on' : 'off'}
           onChange={(event) => setUsePaymaster(event.target.value === 'on')}
         >
-          <option value="on">Enabled</option>
-          <option value="off">Disabled</option>
+          <option value="on">开启</option>
+          <option value="off">关闭</option>
         </select>
       </label>
       {usePaymaster && (
@@ -176,7 +212,7 @@ function ConfigPanel({
         </label>
       )}
       <label className="field">
-        <span>Account mode</span>
+        <span>账户模式</span>
         <select
           value={accountMode}
           onChange={(event) =>
@@ -184,22 +220,22 @@ function ConfigPanel({
           }
         >
           <option value="simpleAccount">SimpleAccount Factory v0.8</option>
-          <option value="simple7702">Simple7702 Account</option>
+          <option value="simple7702">Simple7702 账户</option>
         </select>
       </label>
       <label className="field">
-        <span>Owner signer</span>
+        <span>Owner 签名方式</span>
         <select
           value={ownerMode}
           onChange={(event) => setOwnerMode(event.target.value as OwnerMode)}
         >
-          <option value="wallet">Connected wallet</option>
-          <option value="privateKey">Private key (debug)</option>
+          <option value="wallet">已连接钱包</option>
+          <option value="privateKey">私钥（调试）</option>
         </select>
       </label>
       {ownerMode === 'privateKey' && (
         <label className="field">
-          <span>Owner private key</span>
+          <span>Owner 私钥</span>
           <input
             type="password"
             value={ownerPrivateKey}
@@ -218,7 +254,7 @@ function ContractsPanel() {
   return (
     <section className="panel">
       <div className="panel-heading">
-        <h2>Contracts</h2>
+        <h2>合约</h2>
       </div>
       <div className="stack">
         <div className="kv">
@@ -258,22 +294,22 @@ function DiagnosticsPanel({
   return (
     <section className="panel">
       <div className="panel-heading">
-        <h2>Diagnostics</h2>
-        <button className="icon-button" onClick={onRefresh} title="Refresh">
-          Refresh
+        <h2>诊断</h2>
+        <button className="icon-button" onClick={onRefresh} title="刷新">
+          刷新
         </button>
       </div>
       <div className="stack">
         <div className="kv">
-          <span>EOA code</span>
+          <span>EOA 代码</span>
           <code>{ownerCode && ownerCode !== '0x' ? ownerCode : '0x'}</code>
         </div>
         <div className="kv">
-          <span>Smart account</span>
+          <span>智能账户</span>
           <code>{smartAccountAddress ?? '-'}</code>
         </div>
         <div className="kv">
-          <span>Smart account CFX</span>
+          <span>智能账户 CFX</span>
           <code>{formatCfx(smartAccountBalance)}</code>
         </div>
         {balances.map((item) => (
@@ -358,26 +394,26 @@ function OperationPanel({
       <div className="toolbar">
         <div>
           <h2>UserOperation</h2>
-          <p>EntryPoint v0.8, SimpleAccount or 7702 account, Paymaster sponsored.</p>
+          <p>EntryPoint v0.8，支持 SimpleAccount 或 7702 账户，可使用 Paymaster 赞助。</p>
         </div>
         <StatusPill state={status} />
       </div>
 
       <div className="form-grid">
         <label className="field">
-          <span>Execution mode</span>
+          <span>执行模式</span>
           <select
             value={operationMode}
             onChange={(event) =>
               setOperationMode(event.target.value as OperationMode)
             }
           >
-            <option value="single">Single execute</option>
-            <option value="batch">Batch execute</option>
+            <option value="single">单次执行</option>
+            <option value="batch">批量执行</option>
           </select>
         </label>
         <label className="field">
-          <span>FooDapp call</span>
+          <span>FooDapp 调用</span>
           <select
             disabled={operationMode === 'batch'}
             value={callPreset}
@@ -385,15 +421,15 @@ function OperationPanel({
               setCallPreset(event.target.value as FooCallPreset)
             }
           >
-            <option value="deposit">deposit() (Deposit)</option>
-            <option value="transfer">transfer() (Transferr)</option>
-            <option value="withdraw">withdraw() (Withdraw)</option>
-            <option value="custom">Custom calldata</option>
+            <option value="deposit">deposit()（存入）</option>
+            <option value="transfer">transfer()（转移）</option>
+            <option value="withdraw">withdraw()（取回）</option>
+            <option value="custom">自定义 calldata</option>
           </select>
         </label>
         {operationMode === 'single' ? (
           <label className="field wide-field">
-            <span>Call data</span>
+            <span>调用数据</span>
             <input
               disabled={callPreset !== 'custom'}
               value={callPreset === 'custom' ? customCallData : callData}
@@ -403,7 +439,7 @@ function OperationPanel({
         ) : (
           <>
             <div className="field wide-field">
-              <span>Batch FooDapp calls</span>
+              <span>批量 FooDapp 调用</span>
               <div className="check-row">
                 {(['deposit', 'transfer', 'withdraw'] as const).map((item) => (
                   <label className="check-option" key={item}>
@@ -418,7 +454,7 @@ function OperationPanel({
               </div>
             </div>
             <div className="field wide-field">
-              <span>Batch CFX transfer</span>
+              <span>批量 CFX 转账</span>
               <label className="check-option fit-option">
                 <input
                   type="checkbox"
@@ -427,13 +463,13 @@ function OperationPanel({
                     setBatchTransferEnabled(event.target.checked)
                   }
                 />
-                <span>include CFX transfer</span>
+                <span>包含 CFX 转账</span>
               </label>
             </div>
             {batchTransferEnabled && (
               <div className="transfer-grid wide-field">
                 <label className="field">
-                  <span>Recipient</span>
+                  <span>接收地址</span>
                   <input
                     value={batchTransferTo}
                     onChange={(event) => setBatchTransferTo(event.target.value)}
@@ -441,7 +477,7 @@ function OperationPanel({
                   />
                 </label>
                 <label className="field">
-                  <span>Amount CFX</span>
+                  <span>CFX 数量</span>
                   <input
                     value={batchTransferAmount}
                     onChange={(event) =>
@@ -459,16 +495,16 @@ function OperationPanel({
 
       <div className="action-row">
         <button className="button" onClick={onPrepare} disabled={status === 'loading'}>
-          Prepare UserOperation
+          准备 UserOperation
         </button>
         <button className="button accent" onClick={onSend} disabled={status === 'loading'}>
-          Send UserOperation
+          发送 UserOperation
         </button>
       </div>
 
       <div className="bulk-row">
         <label className="field wide-field">
-          <span>Bulk owner private key</span>
+          <span>批量 Owner 私钥</span>
           <input
             type="password"
             value={bulkOwnerPrivateKey}
@@ -479,7 +515,7 @@ function OperationPanel({
           />
         </label>
         <label className="field">
-          <span>Private-key bulk count</span>
+          <span>私钥批量数量</span>
           <input
             value={bulkCount}
             onChange={(event) => setBulkCount(event.target.value)}
@@ -492,7 +528,7 @@ function OperationPanel({
           onClick={onBulkSend}
           disabled={status === 'loading'}
         >
-          Send Multiple UserOps
+          批量发送 UserOps
         </button>
       </div>
 
@@ -501,7 +537,7 @@ function OperationPanel({
       {prepared && (
         <div className="output">
           <div className="output-heading">
-            <span>Prepared request</span>
+            <span>已准备请求</span>
             <code>{compact(prepared.sender)}</code>
           </div>
           <pre>{stringifyUserOperation(prepared)}</pre>
@@ -511,19 +547,19 @@ function OperationPanel({
       {result && (
         <div className="receipt">
           <div className="receipt-grid">
-            <span>UserOp hash</span>
+            <span>UserOp 哈希</span>
             <code>{result.userOpHash}</code>
-            <span>Transaction</span>
+            <span>交易</span>
             <code>{result.txHash ?? '-'}</code>
-            <span>Status</span>
-            <code>{result.success ? 'success' : 'reverted'}</code>
-            <span>Block</span>
+            <span>状态</span>
+            <code>{result.success ? '成功' : '已回滚'}</code>
+            <span>区块</span>
             <code>{result.blockNumber?.toString() ?? '-'}</code>
           </div>
           {result.reason && <div className="alert">{result.reason}</div>}
           {result.txHash && (
             <a href={getExplorerTxUrl(result.txHash)} target="_blank" rel="noreferrer">
-              Open transaction
+              打开交易
             </a>
           )}
         </div>
@@ -532,7 +568,7 @@ function OperationPanel({
       {bulkResults.length > 0 && (
         <div className="receipt">
           <div className="output-heading">
-            <span>Bulk UserOperations</span>
+            <span>批量 UserOperations</span>
             <code>{bulkResults.length}</code>
           </div>
           <div className="bulk-results">
@@ -543,7 +579,7 @@ function OperationPanel({
               >
                 <span>{item.owner === 'wallet' ? 'A' : 'B'} #{item.index + 1}</span>
                 <code>{item.result?.userOpHash ?? item.error ?? '-'}</code>
-                <span>{item.status}</span>
+                <span>{item.status === 'success' ? '成功' : '错误'}</span>
                 <code>{item.result?.txHash ?? `nonce key ${item.nonceKey}`}</code>
               </div>
             ))}
@@ -631,19 +667,19 @@ function App() {
       batchCalls.length === 0 &&
       !batchTransferEnabled
     ) {
-      throw new Error('Select at least one batch call.')
+      throw new Error('请至少选择一个批量调用。')
     }
 
     let batchTransferRecipient: Address | undefined
     let batchTransferValue = 0n
     if (operationMode === 'batch' && batchTransferEnabled) {
       if (!isAddress(batchTransferTo)) {
-        throw new Error('Set a valid CFX transfer recipient.')
+        throw new Error('请填写有效的 CFX 转账接收地址。')
       }
       batchTransferRecipient = batchTransferTo
       batchTransferValue = parseEther(batchTransferAmount || '0')
       if (batchTransferValue <= 0n) {
-        throw new Error('Set a CFX transfer amount greater than 0.')
+        throw new Error('请填写大于 0 的 CFX 转账数量。')
       }
     }
 
@@ -677,13 +713,13 @@ function App() {
 
   const buildParams = async () => {
     if (!canUseConfig) {
-      throw new Error('Set a valid Bundler URL, EntryPoint, and Paymaster.')
+      throw new Error('请填写有效的 Bundler URL、EntryPoint 和 Paymaster。')
     }
     if (ownerMode === 'wallet' && !walletClient) {
-      throw new Error('Connect a wallet first.')
+      throw new Error('请先连接钱包。')
     }
     if (ownerMode === 'privateKey' && !ownerPrivateKey.trim()) {
-      throw new Error('Owner private key is required in debug mode.')
+      throw new Error('调试模式下需要填写 Owner 私钥。')
     }
 
     return {
@@ -715,7 +751,7 @@ function App() {
 
   const buildWalletParams = async () => {
     if (!walletClient) {
-      throw new Error('Connect wallet A before bulk send.')
+      throw new Error('批量发送前请先连接钱包 A。')
     }
 
     return {
@@ -754,7 +790,7 @@ function App() {
     } catch (caught) {
       const explanation = explainUserOperationError(caught)
       const message =
-        caught instanceof Error ? caught.message : 'Unknown UserOperation error.'
+        caught instanceof Error ? caught.message : '未知 UserOperation 错误。'
       setError(explanation ? `${explanation}\n\n${message}` : message)
       setStatus('error')
     }
@@ -769,18 +805,18 @@ function App() {
 
     try {
       if (!canUseConfig) {
-        throw new Error('Set a valid Bundler URL, EntryPoint, and Paymaster.')
+        throw new Error('请填写有效的 Bundler URL、EntryPoint 和 Paymaster。')
       }
       if (!walletClient) {
-        throw new Error('Connect wallet A before bulk send.')
+        throw new Error('批量发送前请先连接钱包 A。')
       }
       if (!bulkOwnerPrivateKey.trim()) {
-        throw new Error('Set the bulk owner private key.')
+        throw new Error('请填写批量 Owner 私钥。')
       }
 
       const count = Number.parseInt(bulkCount, 10)
       if (!Number.isInteger(count) || count < 2 || count > 20) {
-        throw new Error('Set bulk count between 2 and 20.')
+        throw new Error('批量数量需要在 2 到 20 之间。')
       }
 
       const bulkPrivateKey = (bulkOwnerPrivateKey.startsWith('0x')
@@ -832,7 +868,7 @@ function App() {
         const message =
           item.reason instanceof Error
             ? item.reason.message
-            : 'Unknown UserOperation error.'
+            : '未知 UserOperation 错误。'
         return {
           owner,
           index: ownerIndex,
@@ -856,7 +892,7 @@ function App() {
       setBalances(diagnostics.balances)
       const failed = nextResults.filter((item) => item.status === 'error')
       if (failed.length > 0) {
-        setError(`${failed.length} of ${nextResults.length} UserOperations failed.`)
+        setError(`${nextResults.length} 个 UserOperations 中有 ${failed.length} 个失败。`)
         setStatus('error')
       } else {
         setStatus('success')
@@ -864,7 +900,7 @@ function App() {
     } catch (caught) {
       const explanation = explainUserOperationError(caught)
       const message =
-        caught instanceof Error ? caught.message : 'Unknown UserOperation error.'
+        caught instanceof Error ? caught.message : '未知 UserOperation 错误。'
       setError(explanation ? `${explanation}\n\n${message}` : message)
       setStatus('error')
     }
@@ -875,9 +911,9 @@ function App() {
       <header className="topbar">
         <div>
           <h1>EIP-4337 + EIP-7702 Demo</h1>
-          <p>Conflux eSpace Testnet account-abstraction workbench</p>
+          <p>Conflux eSpace 测试网账户抽象调试台</p>
         </div>
-        <div className="network-badge">Chain 71</div>
+        <div className="network-badge">链 ID 71</div>
       </header>
 
       <main className="layout">
@@ -909,34 +945,40 @@ function App() {
           />
         </aside>
 
-        <OperationPanel
-          operationMode={operationMode}
-          setOperationMode={setOperationMode}
-          callPreset={callPreset}
-          setCallPreset={setCallPreset}
-          batchCalls={batchCalls}
-          setBatchCalls={setBatchCalls}
-          batchTransferEnabled={batchTransferEnabled}
-          setBatchTransferEnabled={setBatchTransferEnabled}
-          batchTransferTo={batchTransferTo}
-          setBatchTransferTo={setBatchTransferTo}
-          batchTransferAmount={batchTransferAmount}
-          setBatchTransferAmount={setBatchTransferAmount}
-          customCallData={customCallData}
-          setCustomCallData={setCustomCallData}
-          prepared={prepared}
-          result={result}
-          bulkCount={bulkCount}
-          setBulkCount={setBulkCount}
-          bulkOwnerPrivateKey={bulkOwnerPrivateKey}
-          setBulkOwnerPrivateKey={setBulkOwnerPrivateKey}
-          bulkResults={bulkResults}
-          status={status}
-          error={error}
-          onPrepare={() => void run('prepare')}
-          onSend={() => void run('send')}
-          onBulkSend={() => void runBulk()}
-        />
+        <div className="main-column">
+          <div className="info-grid">
+            <UsagePanel />
+            <NotesPanel />
+          </div>
+          <OperationPanel
+            operationMode={operationMode}
+            setOperationMode={setOperationMode}
+            callPreset={callPreset}
+            setCallPreset={setCallPreset}
+            batchCalls={batchCalls}
+            setBatchCalls={setBatchCalls}
+            batchTransferEnabled={batchTransferEnabled}
+            setBatchTransferEnabled={setBatchTransferEnabled}
+            batchTransferTo={batchTransferTo}
+            setBatchTransferTo={setBatchTransferTo}
+            batchTransferAmount={batchTransferAmount}
+            setBatchTransferAmount={setBatchTransferAmount}
+            customCallData={customCallData}
+            setCustomCallData={setCustomCallData}
+            prepared={prepared}
+            result={result}
+            bulkCount={bulkCount}
+            setBulkCount={setBulkCount}
+            bulkOwnerPrivateKey={bulkOwnerPrivateKey}
+            setBulkOwnerPrivateKey={setBulkOwnerPrivateKey}
+            bulkResults={bulkResults}
+            status={status}
+            error={error}
+            onPrepare={() => void run('prepare')}
+            onSend={() => void run('send')}
+            onBulkSend={() => void runBulk()}
+          />
+        </div>
       </main>
     </div>
   )

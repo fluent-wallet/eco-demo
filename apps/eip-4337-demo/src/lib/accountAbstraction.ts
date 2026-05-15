@@ -238,7 +238,7 @@ export function getFooCallData(preset: FooCallPreset, customData: string): Hex {
 }
 
 export function formatCfx(value: bigint | null) {
-  if (value === null) return 'unavailable'
+  if (value === null) return '不可用'
   return `${formatEther(value)} CFX`
 }
 
@@ -276,7 +276,7 @@ function getWalletProvider(walletClient: WalletClient) {
 function createWalletOwner(walletClient: WalletClient, chain: Chain) {
   const address = walletClient.account?.address
   if (!address) {
-    throw new Error('Connect a wallet first.')
+    throw new Error('请先连接钱包。')
   }
 
   const provider = getWalletProvider(walletClient)
@@ -290,7 +290,7 @@ function createWalletOwner(walletClient: WalletClient, chain: Chain) {
     address,
     async sign() {
       throw new Error(
-        'Connected wallet raw hash signing is not used by this demo. Use EIP-712 signing instead.',
+        '当前 demo 不使用已连接钱包进行 raw hash 签名，请改用 EIP-712 签名。',
       )
     },
     async signMessage({ message }) {
@@ -357,11 +357,11 @@ function createWalletOwner(walletClient: WalletClient, chain: Chain) {
 
       if (lastError instanceof Error) {
         throw new Error(
-          `Connected wallet does not support EIP-7702 authorization signing through wallet_signAuthorization, eth_sign7702Authorization, or wallet_sign7702Authorization. Use Owner signer = Private key (debug), SimpleAccount mode, or a wallet that exposes 7702 authorization signing. Last wallet error: ${lastError.message}`,
+          `已连接钱包不支持通过 wallet_signAuthorization、eth_sign7702Authorization 或 wallet_sign7702Authorization 签名 EIP-7702 授权。请使用 Owner 签名方式 = 私钥（调试）、SimpleAccount 模式，或换用支持 7702 授权签名的钱包。最后一次钱包错误：${lastError.message}`,
         )
       }
 
-      throw new Error('Wallet returned an invalid EIP-7702 authorization.')
+      throw new Error('钱包返回了无效的 EIP-7702 授权。')
     },
   })
 }
@@ -376,7 +376,7 @@ async function assertAuthorizationSigner(
   const recovered = await recover({ authorization })
   if (!isAddressEqual(recovered, expectedAddress)) {
     throw new Error(
-      `EIP-7702 authorization was signed by ${recovered}, but UserOperation sender is ${expectedAddress}. Make sure the connected wallet account matches the EOA used as sender.`,
+      `EIP-7702 授权由 ${recovered} 签名，但 UserOperation sender 是 ${expectedAddress}。请确认已连接的钱包账户与作为 sender 的 EOA 一致。`,
     )
   }
 }
@@ -406,7 +406,7 @@ async function createClients({
   signAuthorization?: boolean
 }) {
   if (!bundlerUrl.trim()) {
-    throw new Error('Bundler RPC URL is required.')
+    throw new Error('请填写 Bundler RPC URL。')
   }
 
   if (walletClient) {
@@ -423,12 +423,12 @@ async function createClients({
       ? ownerPrivateKey
         ? privateKeyToAccount(normalizeHex(ownerPrivateKey))
         : (() => {
-            throw new Error('Owner private key is required in debug mode.')
+            throw new Error('调试模式下需要填写 Owner 私钥。')
           })()
       : walletClient
         ? createWalletOwner(walletClient, confluxESpaceTestnet)
         : (() => {
-            throw new Error('Connect a wallet first.')
+            throw new Error('请先连接钱包。')
           })()
 
   const entryPoint = {
@@ -513,7 +513,7 @@ async function createClients({
             })
           },
           async decodeCalls() {
-            throw new Error('decodeCalls is not implemented in this demo.')
+            throw new Error('当前 demo 未实现 decodeCalls。')
           },
           async signMessage(parameters) {
             return owner.signMessage(parameters)
@@ -573,7 +573,7 @@ async function createClients({
             }),
           })
           if (!signedAuthorization) {
-            throw new Error('Owner cannot sign EIP-7702 authorization.')
+            throw new Error('Owner 无法签名 EIP-7702 授权。')
           }
           await assertAuthorizationSigner(signedAuthorization, owner.address)
           return signedAuthorization
@@ -745,9 +745,9 @@ export function explainUserOperationError(error: unknown) {
     })
     if (decoded.errorName !== 'ExecuteError') return undefined
     const [index, innerError] = decoded.args
-    return `Batch call #${Number(index) + 1} reverted${
-      innerError && innerError !== '0x' ? ` with inner error ${innerError}` : ''
-    }. For CFX transfers, make sure the smart account itself has enough CFX balance.`
+    return `批量调用 #${Number(index) + 1} 已回滚${
+      innerError && innerError !== '0x' ? `，内部错误为 ${innerError}` : ''
+    }。如果是 CFX 转账，请确认智能账户自身有足够的 CFX 余额。`
   } catch {
     return undefined
   }

@@ -13,12 +13,10 @@ const request = async <T>(method: string, ...args: any[]): Promise<T> => {
     if (namespace && m && typeof CFX[namespace][m] === "function") {
       return await CFX[namespace][m](...args);
     } else {
-      throw new Error(
-        `Method ${m} is not a function in namespace ${namespace}`
-      );
+      throw new Error(`方法 ${m} 在命名空间 ${namespace} 中不是函数。`);
     }
   } catch (e: unknown) {
-    console.error("Unexpected error", e);
+    console.error("非预期错误", e);
     throw e;
   }
 };

@@ -286,6 +286,19 @@
   line-height: 1.5;
 }
 
+.note-danger {
+  border-left: 3px solid #ff4d4f;
+  border-radius: 6px;
+  background: rgba(255, 77, 79, 0.12);
+  color: #ff9a96;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.note-danger::marker {
+  color: #ff4d4f;
+}
+
 .error-text {
   margin: 0;
   color: #ffaaa6;
