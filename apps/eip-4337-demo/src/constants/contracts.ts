@@ -1,0 +1,19 @@
+import type { Address } from 'viem'
+
+export const SMART_ACCOUNT_IMPLEMENTATION =
+  '0xD165320665C36b2F8F2BB2EfA5621db7eA012028' as Address
+
+export const DEFAULT_PAYMASTER_ADDRESS =
+  '0x2dbB152f7D3F673eea1459FE39EcebdF29106652' as Address
+
+export const FOO_DAPP_ADDRESS =
+  '0xa481e8Ae022D41906829F332dDd2EE095CeAC5E2' as Address
+
+export const ENTRY_POINT_V08_ADDRESS =
+  '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108' as Address
+
+export const SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS =
+  '0x13E9ed32155810FDbd067D4522C492D6f68E5944' as Address
+
+export const DEFAULT_BUNDLER_URL =
+  import.meta.env.VITE_BUNDLER_RPC_URL ?? 'https://aa-bundle.confluxrpc.org'

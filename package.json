@@ -1,0 +1,16 @@
+{
+  "name": "eco-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.5.0",
+  "scripts": {
+    "dev:eip-4337": "pnpm --filter @eco-demo/eip-4337-demo dev",
+    "dev:eip-7702": "pnpm --filter @eco-demo/eip-7702-demo dev",
+    "build": "node scripts/build-pages.mjs",
+    "build:apps": "pnpm --filter './apps/*' build",
+    "lint": "pnpm --filter './apps/*' lint",
+    "preview:eip-4337": "pnpm --filter @eco-demo/eip-4337-demo preview",
+    "preview:eip-7702": "pnpm --filter @eco-demo/eip-7702-demo preview"
+  }
+}
