@@ -1,298 +1,386 @@
 import "./App.css";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { createWalletClient, createPublicClient, http } from "viem";
 import { chain, chainId } from "./constants";
+
+type HexString = `0x${string}`;
+
+type AuthorizationInput = {
+  eoaPK: HexString | "";
+  delegatedTo: HexString | "";
+  chainId: number | HexString | 0;
+  data: HexString | "";
+  nonce: number | undefined;
+};
+
+const emptyAuthorization = (): AuthorizationInput => ({
+  eoaPK: "",
+  delegatedTo: "",
+  chainId: 0,
+  data: "0x",
+  nonce: undefined,
+});
 
 const publicClient = createPublicClient({
   chain,
   transport: http(),
 });
 
-function App() {
-  const [txSenderPK, setTxSenderPK] = useState<`0x${string}`>();
-  const [to, setTo] = useState<`0x${string}`>();
-  const [hash, setHash] = useState<string>();
-  const [data, setData] = useState<`0x${string}`>();
-  const [authorizationList, setAuthorizationList] = useState<
-    {
-      eoaPK: `0x${string}` | "";
-      delegatedTo: `0x${string}` | "";
-      chainId: number | `0x${string}` | 0;
-      data: `0x${string}` | "";
-      nonce: number | undefined;
-    }[]
-  >([{ eoaPK: "", delegatedTo: "", chainId: 0, data: "0x", nonce: undefined }]);
-  const handleTxSenderPK = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTxSenderPK(e.target.value as `0x${string}`);
-  };
-  const handleEoaPK = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    setAuthorizationList(
-      authorizationList.map((item, i) => {
-        if (i === index) {
-          return { ...item, eoaPK: e.target.value as `0x${string}` };
-        }
-        return item;
-      })
-    );
-  };
-  const handleDelegatedTo = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    setAuthorizationList(
-      authorizationList.map((item, i) => {
-        if (i === index) {
-          return { ...item, delegatedTo: e.target.value as `0x${string}` };
-        }
-        return item;
-      })
-    );
-  };
-  const handleChainId = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    setAuthorizationList(
-      authorizationList.map((item, i) => {
-        if (i === index) {
-          return { ...item, chainId: e.target.value as `0x${string}` };
-        }
-        return item;
-      })
-    );
-  };
-  const handleNonce = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    index: number
-  ) => {
-    setAuthorizationList(
-      authorizationList.map((item, i) => {
-        if (i === index) {
-          return { ...item, nonce: Number(e.target.value) };
-        }
-        return item;
-      })
-    );
-  };
-  const handleData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setData(e.target.value as `0x${string}`);
-  };
-  const handleTo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTo(e.target.value as `0x${string}`);
-  };
-  const delegate = async () => {
-    if (!txSenderPK) {
-      alert("请输入txSenderPK");
-      return;
-    }
-    const relay = privateKeyToAccount(txSenderPK);
-    const walletClient = createWalletClient({
-      account: relay,
-      chain,
-      transport: http(),
-    });
-    const list = authorizationList
-      .filter((item) => !!item.eoaPK && !!item.delegatedTo)
-      .map(async (item) => {
-        const eoa = privateKeyToAccount(item.eoaPK as `0x${string}`);
-        const authorization = await walletClient.signAuthorization({
-          contractAddress: item.delegatedTo as `0x${string}`,
-          account: eoa,
-          chainId: Number(item.chainId) || 0,
-          nonce: item.nonce || undefined,
-        });
-        return authorization;
-      });
-    if (list.length === 0) {
-      alert("无可用授权");
-      return;
-    }
+function compact(value: string | undefined) {
+  if (!value) return "-";
+  return `${value.slice(0, 10)}...${value.slice(-8)}`;
+}
 
-    const hash = await walletClient.sendTransaction({
-      authorizationList: await Promise.all(list),
-      to: to,
-      data: data,
-    });
-    setHash(hash);
-    return hash;
+function getExplorerTxUrl(hash: string) {
+  const base =
+    chainId === "8889"
+      ? "https://evmtestnet-stage.confluxscan.net"
+      : "https://evmtestnet.confluxscan.org";
+  return `${base}/tx/${hash}`;
+}
+
+function App() {
+  const [txSenderPK, setTxSenderPK] = useState<HexString>();
+  const [to, setTo] = useState<HexString>();
+  const [hash, setHash] = useState<string>();
+  const [data, setData] = useState<HexString>("0x");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
+    "idle",
+  );
+  const [error, setError] = useState<string>();
+  const [authorizationList, setAuthorizationList] = useState<
+    AuthorizationInput[]
+  >([emptyAuthorization()]);
+
+  const validAuthorizationCount = useMemo(
+    () =>
+      authorizationList.filter((item) => item.eoaPK && item.delegatedTo).length,
+    [authorizationList],
+  );
+
+  const updateAuthorization = (
+    index: number,
+    patch: Partial<AuthorizationInput>,
+  ) => {
+    setAuthorizationList((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item,
+      ),
+    );
   };
+
+  const delegate = async () => {
+    setStatus("loading");
+    setError(undefined);
+    setHash(undefined);
+
+    try {
+      if (!txSenderPK) {
+        throw new Error("tx sender pk is required.");
+      }
+
+      const relay = privateKeyToAccount(txSenderPK);
+      const walletClient = createWalletClient({
+        account: relay,
+        chain,
+        transport: http(),
+      });
+
+      const list = authorizationList
+        .filter((item) => !!item.eoaPK && !!item.delegatedTo)
+        .map(async (item) => {
+          const eoa = privateKeyToAccount(item.eoaPK as HexString);
+          return walletClient.signAuthorization({
+            contractAddress: item.delegatedTo as HexString,
+            account: eoa,
+            chainId: Number(item.chainId) || 0,
+            nonce: item.nonce || undefined,
+          });
+        });
+
+      if (list.length === 0) {
+        throw new Error("At least one authorization is required.");
+      }
+
+      const txHash = await walletClient.sendTransaction({
+        authorizationList: await Promise.all(list),
+        to,
+        data,
+      });
+
+      setHash(txHash);
+      setStatus("success");
+      return txHash;
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : "Failed to send transaction.";
+      setError(message);
+      setStatus("error");
+      return undefined;
+    }
+  };
+
   const handleFetchNonce = async (index: number) => {
     const eoaPK = authorizationList[index].eoaPK;
-    if (!eoaPK) {
-      alert("eoa pk is required");
-      return;
+
+    try {
+      setError(undefined);
+      if (!eoaPK) {
+        throw new Error("EOA private key is required before fetching nonce.");
+      }
+
+      const eoa = privateKeyToAccount(eoaPK);
+      const nonce = await publicClient.getTransactionCount({
+        address: eoa.address,
+      });
+
+      updateAuthorization(index, { nonce });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to fetch nonce.");
+      setStatus("error");
     }
-    const eoa = privateKeyToAccount(eoaPK);
-    const nonce = await publicClient.getTransactionCount({
-      address: eoa.address,
-    });
-    setAuthorizationList(
-      authorizationList.map((item) => ({ ...item, nonce: nonce }))
-    );
   };
+
   return (
-    <div className="App">
-      <select
-        onChange={(e) => {
-          localStorage.setItem("_7702_chainId", e.target.value);
-          window.location.reload();
-        }}
-        defaultValue={chainId}
-      >
-        <option value="71">71</option>
-        <option value="8889">8889</option>
-      </select>
-      <div>
-        <h1>TIPS</h1>
+    <div className="app-shell">
+      <header className="topbar">
         <div>
-          <p style={{ color: "red" }}>
-            1.
-            pk字段需要填写私钥（0x开头），项目不保存，但是为了安全请使用测试账户的私钥
-          </p>
-          <p>
-            2. delegate 后如果希望eoa仍然可以被转账，需要delegated
-            to支持receive方法，可以使用0x96ee5ac72ab76d4fbf7207d000c0d95835c24579合约
-          </p>
-          <p>
-            3. 如果tx sender 和
-            eoa使用同一个账户，会出现nonce错误，没有进行处理，方便进行异常case测试
-          </p>
-          <p>4. 如果chain id不为0/{chainId}，会出现chain id不匹配的报错，同3</p>
-          <p>
-            5. delegate后，如果想要调用eoa的方法，可以去scan上通过delegated
-            code页面进行调用，这里不额外提供
-          </p>
-          <p>
-            6.
-            一次授权多个时，如果eoa的pk相同，多次授权交易nonce会重复，导致只有其中一笔授权交易成功
-          </p>
-          <p>
-            7. 当tx sender 和 eoa 相同，或者交易中 eoa 多次授权，会出现 nonce
-            重复报错；此时可以通过authorizationList里的【fetch
-            nonce】按钮查询eoa的最新nonce，手动填写nonce。填写nonce的规则为：如果tx
-            sender和eoa相同，eoa的nonce需要固定+1；如果eoa有多次授权，从第一次授权开始依次+1
-          </p>
+          <h1>EIP-7702 Demo</h1>
+          <p>Sign authorization lists and submit delegated EOA transactions.</p>
         </div>
-      </div>
-      <div style={{ marginTop: "20px", padding: "10px" }}>
-        <h3>Form</h3>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <label>tx sender pk</label>
-          <input style={{ flex: 1 }} type="text" onChange={handleTxSenderPK} />
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <label>data(可选)</label>
-          <input
-            style={{ flex: 1 }}
-            type="text"
-            onChange={handleData}
-            defaultValue="0x"
-          />
-        </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <label>to</label>
-          <input
-            style={{ flex: 1 }}
-            type="text"
-            onChange={handleTo}
-            defaultValue="0x"
-          />
-        </div>
-        <h3>
-          <span>authorizationList</span>
-          <button
-            style={{ marginLeft: "10px", cursor: "pointer" }}
-            onClick={() =>
-              setAuthorizationList([
-                ...authorizationList,
-                {
-                  eoaPK: "",
-                  delegatedTo: "",
-                  chainId: 0,
-                  data: "0x",
-                  nonce: undefined,
-                },
-              ])
-            }
-          >
-            add
-          </button>
-        </h3>
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            flexDirection: "column",
-            border: "1px solid #ccc",
-            padding: "10px",
-          }}
-        >
-          {authorizationList.map((item, index) => (
-            <div key={index} style={{ borderBottom: "1px solid #ccc" }}>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <label>eoa pk</label>
-                <input
-                  style={{ flex: 1 }}
-                  type="text"
-                  onChange={(e) => handleEoaPK(e, index)}
-                  value={item.eoaPK}
-                />
-              </div>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <label>delegated to</label>
-                <input
-                  style={{ flex: 1 }}
-                  type="text"
-                  onChange={(e) => handleDelegatedTo(e, index)}
-                  value={item.delegatedTo}
-                />
-              </div>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <label>chain id(可选)</label>
-                <input
-                  style={{ flex: 1 }}
-                  type="number"
-                  onChange={(e) => handleChainId(e, index)}
-                  value={item.chainId}
-                />
-              </div>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <label>nonce(可选)</label>
-                <input
-                  style={{ flex: 1 }}
-                  type="text"
-                  onChange={(e) => handleNonce(e, index)}
-                  value={item.nonce}
-                />
-                <button
-                  style={{ cursor: "pointer" }}
-                  onClick={() => handleFetchNonce(index)}
+        <span className="network-badge">Chain {chainId}</span>
+      </header>
+
+      <main className="layout">
+        <aside className="sidebar">
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Network</h2>
+              <span className="pill">Active</span>
+            </div>
+            <div className="stack">
+              <label className="field">
+                <span>Chain ID</span>
+                <select
+                  onChange={(event) => {
+                    localStorage.setItem("_7702_chainId", event.target.value);
+                    window.location.reload();
+                  }}
+                  defaultValue={chainId}
                 >
-                  fetch nonce
-                </button>
+                  <option value="71">71 - Conflux eSpace Testnet</option>
+                  <option value="8889">8889 - Conflux Devnet</option>
+                </select>
+              </label>
+              <div className="kv">
+                <span>Authorization count</span>
+                <code>{validAuthorizationCount}</code>
               </div>
             </div>
-          ))}
-        </div>
-        <button onClick={delegate}>delegate</button>
-      </div>
-      {hash && (
-        <div>
-          <p>
-            <a
-              href={`https://evmtestnet-stage.confluxscan.net/tx/${hash}`}
-              target="_blank"
-              rel="noopener noreferrer"
+          </section>
+
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Safety Notes</h2>
+            </div>
+            <ol className="notes-list">
+              <li>Use only test-account private keys. The app does not persist them.</li>
+              <li>
+                If the EOA still needs to receive transfers after delegation,
+                delegate to code with a receive method.
+              </li>
+              <li>
+                When tx sender and EOA are the same account, manually set nonce to
+                latest nonce + 1.
+              </li>
+              <li>
+                Multiple authorizations for the same EOA need sequential nonce
+                values.
+              </li>
+            </ol>
+          </section>
+
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Result</h2>
+              <span className={`pill pill-${status}`}>{status}</span>
+            </div>
+            <div className="stack">
+              {hash ? (
+                <div className="kv">
+                  <span>Transaction hash</span>
+                  <a href={getExplorerTxUrl(hash)} target="_blank" rel="noreferrer">
+                    {compact(hash)}
+                  </a>
+                </div>
+              ) : (
+                <p className="muted">No transaction sent yet.</p>
+              )}
+              {error && <p className="error-text">{error}</p>}
+            </div>
+          </section>
+        </aside>
+
+        <section className="workbench">
+          <div className="toolbar">
+            <div>
+              <h2>Transaction Builder</h2>
+              <p>Build one transaction with one or more EIP-7702 authorizations.</p>
+            </div>
+            <button
+              className="button accent"
+              disabled={status === "loading"}
+              onClick={delegate}
             >
-              {hash}
-            </a>
-          </p>
-        </div>
-      )}
+              {status === "loading" ? "Sending..." : "Delegate"}
+            </button>
+          </div>
+
+          <div className="form-grid">
+            <label className="field">
+              <span>Tx sender private key</span>
+              <input
+                autoComplete="off"
+                onChange={(event) => setTxSenderPK(event.target.value as HexString)}
+                placeholder="0x..."
+                spellCheck={false}
+                type="password"
+              />
+            </label>
+
+            <label className="field">
+              <span>To</span>
+              <input
+                onChange={(event) => setTo(event.target.value as HexString)}
+                placeholder="0x..."
+                spellCheck={false}
+              />
+            </label>
+
+            <label className="field form-grid-wide">
+              <span>Calldata</span>
+              <input
+                onChange={(event) => setData(event.target.value as HexString)}
+                placeholder="0x"
+                spellCheck={false}
+                value={data}
+              />
+            </label>
+          </div>
+
+          <div className="section-heading">
+            <div>
+              <h2>Authorization List</h2>
+              <p>Each row signs an authorization for one EOA.</p>
+            </div>
+            <button
+              className="button secondary"
+              onClick={() =>
+                setAuthorizationList((current) => [
+                  ...current,
+                  emptyAuthorization(),
+                ])
+              }
+            >
+              Add Authorization
+            </button>
+          </div>
+
+          <div className="authorization-list">
+            {authorizationList.map((item, index) => (
+              <section className="authorization-card" key={index}>
+                <div className="panel-heading">
+                  <h3>Authorization #{index + 1}</h3>
+                  {authorizationList.length > 1 && (
+                    <button
+                      className="icon-button"
+                      onClick={() =>
+                        setAuthorizationList((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div className="auth-grid">
+                  <label className="field">
+                    <span>EOA private key</span>
+                    <input
+                      autoComplete="off"
+                      onChange={(event) =>
+                        updateAuthorization(index, {
+                          eoaPK: event.target.value as HexString,
+                        })
+                      }
+                      placeholder="0x..."
+                      spellCheck={false}
+                      type="password"
+                      value={item.eoaPK}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Delegated to</span>
+                    <input
+                      onChange={(event) =>
+                        updateAuthorization(index, {
+                          delegatedTo: event.target.value as HexString,
+                        })
+                      }
+                      placeholder="0x96ee5ac72ab76d4fbf7207d000c0d95835c24579"
+                      spellCheck={false}
+                      value={item.delegatedTo}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Chain ID</span>
+                    <input
+                      onChange={(event) =>
+                        updateAuthorization(index, {
+                          chainId: event.target.value as HexString,
+                        })
+                      }
+                      placeholder="0 or current chain"
+                      type="number"
+                      value={item.chainId}
+                    />
+                  </label>
+
+                  <label className="field">
+                    <span>Nonce</span>
+                    <div className="inline-control">
+                      <input
+                        onChange={(event) =>
+                          updateAuthorization(index, {
+                            nonce:
+                              event.target.value === ""
+                                ? undefined
+                                : Number(event.target.value),
+                          })
+                        }
+                        placeholder="optional"
+                        type="number"
+                        value={item.nonce ?? ""}
+                      />
+                      <button
+                        className="icon-button"
+                        onClick={() => handleFetchNonce(index)}
+                      >
+                        Fetch
+                      </button>
+                    </div>
+                  </label>
+                </div>
+              </section>
+            ))}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
