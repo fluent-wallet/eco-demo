@@ -42,6 +42,8 @@ type BulkUserOperationResult = {
   error?: string
 }
 
+const GUIDE_DISMISSED_KEY = 'eco-demo:eip-4337-guide-dismissed'
+
 function compact(value: string | undefined) {
   if (!value) return '-'
   return `${value.slice(0, 6)}...${value.slice(-4)}`
@@ -105,39 +107,67 @@ function WalletPanel() {
   )
 }
 
-function UsagePanel() {
+function GuideContent() {
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h2>使用说明</h2>
-      </div>
-      <ol className="guide-list">
-        <li>连接钱包，并确认钱包网络为 Conflux eSpace 测试网（链 ID 71）。</li>
-        <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔aa交易的发起人是智能账户还是钱包账户自身。</li>
-        <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
-        <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas， 需要提前转入。</li>
-        <li>在右侧选择单次执行或批量执行，点击“准备 UserOperation”查看请求内容。</li>
-        <li>确认请求无误后点击“发送 UserOperation”，等待 Bundler 返回 UserOp 哈希和链上交易结果。</li>
-      </ol>
-    </section>
+    <div className="guide-content">
+      <section>
+        <h3>使用说明</h3>
+        <ol className="guide-list">
+          <li>连接钱包，并确认钱包网络为 Conflux eSpace 测试网（链 ID 71）。</li>
+          <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔 aa 交易的发起人是智能账户还是钱包账户自身。</li>
+          <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
+          <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas，需要提前转入。</li>
+          <li>在右侧选择单次执行或批量执行，点击“准备 UserOperation”查看请求内容。</li>
+          <li>确认请求无误后点击“发送 UserOperation”，等待 Bundler 返回 UserOp 哈希和链上交易结果。</li>
+        </ol>
+      </section>
+      <section>
+        <h3>注意事项</h3>
+        <ul className="guide-list">
+          <li className="guide-danger">私钥模式只用于本地调试，请勿填写主网或真实资产账户私钥。</li>
+          <li>本 demo 固定面向 Conflux eSpace 测试网，钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要保持一致。</li>
+          <li>Paymaster 赞助开启时，Paymaster 需要有余额并支持当前 UserOperation；否则会在发送阶段失败。</li>
+          <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
+          <li>如果钱包还没有授权给其他智能账户，尝试 7702 流程时需要先去 7702 demo 进行授权；或者 Owner 签名方式使用私钥，会在 aa 交易里带上授权信息同时完成授权和 UserOp 执行。</li>
+          <li>“准备 UserOperation”只构造和签名请求，不会上链；“发送 UserOperation”才会提交到 Bundler。</li>
+          <li>批量执行是 batchExecute，是指一个 UserOp 里包含多个合约调用（比如 approve + transfer）。</li>
+          <li>批量发送 UserOps 是根据填入的批量数量把 UserOp 重复发送 n 次，以达到一个 bundle tx 内包含多个 aa tx 的目的（实际打包规则由 Bundler RPC 实现，不能保证一定会多个交易打包在一个 bundle）。</li>
+          <li>如果希望测试 bundle tx 上链后内部 aa 交易失败的情况，可以用一个只有 1 CFX 的账户私钥批量发 UserOps，并包含 0.9 CFX 转账给其他账户，这样重复发送时只会有一笔成功，其余会失败。</li>
+        </ul>
+      </section>
+    </div>
   )
 }
 
-function NotesPanel() {
+function GuideModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  if (!open) return null
+
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h2>注意事项</h2>
-      </div>
-      <ul className="guide-list">
-        <li className="guide-danger">私钥模式只用于本地调试，请勿填写主网或真实资产账户私钥。</li>
-        <li>本 demo 固定面向 Conflux eSpace 测试网，钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要保持一致。</li>
-        <li>Paymaster 赞助开启时，Paymaster 需要有余额并支持当前 UserOperation；否则会在发送阶段失败。</li>
-        <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
-        <li>如果钱包还没有授权给其他智能账户，尝试7702流程时需要先去7702demo进行授权；或者Owner 签名方式使用私钥，会在aa交易里带上授权信息同时完成授权和userOp执行。</li>
-        <li>“准备 UserOperation”只构造和签名请求，不会上链；“发送 UserOperation”才会提交到 Bundler。</li>
-      </ul>
-    </section>
+    <div className="modal-backdrop" role="presentation">
+      <section
+        aria-labelledby="guide-modal-title"
+        aria-modal="true"
+        className="guide-modal"
+        role="dialog"
+      >
+        <div className="modal-heading">
+          <div>
+            <h2 id="guide-modal-title">使用说明与注意事项</h2>
+            <p>开始操作前请先确认账户模式、签名方式和 gas 支付方式。</p>
+          </div>
+          <button className="icon-button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+        <GuideContent />
+      </section>
+    </div>
   )
 }
 
@@ -350,6 +380,7 @@ function OperationPanel({
   onPrepare,
   onSend,
   onBulkSend,
+  onOpenGuide,
 }: {
   operationMode: OperationMode
   setOperationMode: (value: OperationMode) => void
@@ -377,6 +408,7 @@ function OperationPanel({
   onPrepare: () => void
   onSend: () => void
   onBulkSend: () => void
+  onOpenGuide: () => void
 }) {
   const callData = useMemo(
     () => getFooCallData(callPreset, customCallData),
@@ -393,7 +425,12 @@ function OperationPanel({
     <section className="workbench">
       <div className="toolbar">
         <div>
-          <h2>UserOperation</h2>
+          <div className="toolbar-title">
+            <h2>UserOperation</h2>
+            <button className="icon-button" onClick={onOpenGuide}>
+              使用说明
+            </button>
+          </div>
           <p>EntryPoint v0.8，支持 SimpleAccount 或 7702 账户，可使用 Paymaster 赞助。</p>
         </div>
         <StatusPill state={status} />
@@ -626,6 +663,9 @@ function App() {
     null,
   )
   const [balances, setBalances] = useState<PaymasterBalance[]>([])
+  const [guideOpen, setGuideOpen] = useState(
+    () => localStorage.getItem(GUIDE_DISMISSED_KEY) !== '1',
+  )
 
   const canUseConfig =
     bundlerUrl.trim().length > 0 &&
@@ -653,6 +693,11 @@ function App() {
   useEffect(() => {
     void refreshDiagnostics()
   }, [refreshDiagnostics])
+
+  const closeGuide = () => {
+    localStorage.setItem(GUIDE_DISMISSED_KEY, '1')
+    setGuideOpen(false)
+  }
 
   const getOwnerPrivateKey = () =>
     ownerPrivateKey
@@ -946,10 +991,6 @@ function App() {
         </aside>
 
         <div className="main-column">
-          <div className="info-grid">
-            <UsagePanel />
-            <NotesPanel />
-          </div>
           <OperationPanel
             operationMode={operationMode}
             setOperationMode={setOperationMode}
@@ -977,9 +1018,12 @@ function App() {
             onPrepare={() => void run('prepare')}
             onSend={() => void run('send')}
             onBulkSend={() => void runBulk()}
+            onOpenGuide={() => setGuideOpen(true)}
           />
         </div>
       </main>
+
+      <GuideModal open={guideOpen} onClose={closeGuide} />
     </div>
   )
 }
