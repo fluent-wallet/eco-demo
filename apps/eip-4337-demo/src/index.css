@@ -377,6 +377,52 @@ pre {
   gap: 12px;
 }
 
+.inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.advanced-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.advanced-batch-actions code {
+  color: #93a4ad;
+  font-size: 12px;
+}
+
+.advanced-call-list {
+  display: grid;
+  gap: 8px;
+}
+
+.advanced-call-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 84px auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  border: 1px solid rgba(141, 152, 165, 0.16);
+  border-radius: 8px;
+  background: rgba(10, 13, 16, 0.42);
+  padding: 6px 8px;
+}
+
+.advanced-call-item span {
+  color: #93a4ad;
+  font-size: 12px;
+}
+
+.advanced-call-item code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #e7edf0;
+  font-size: 12px;
+}
+
 .quick-row {
   grid-template-columns: 1fr 1fr;
   margin-top: 12px;
@@ -552,6 +598,8 @@ pre {
   }
 
   .form-grid,
+  .inline-field,
+  .advanced-call-item,
   .action-row,
   .bulk-row,
   .quick-row,

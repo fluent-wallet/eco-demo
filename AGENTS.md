@@ -28,7 +28,8 @@ Before changing code, read `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, an
 ## Current State
 
 - Root shell and Pages build are already wired.
-- EIP-4337 demo includes wallet/config/contracts/diagnostics panels, UserOperation prepare/send, batch execute, bulk UserOps, and guide modal.
+- EIP-4337 demo includes wallet/config/contracts/diagnostics panels, ABI-driven contract write calls, CFX transfer calls, UserOperation prepare/send, executeBatch call lists, bulk UserOps, and guide modal.
+- EIP-4337 defaults to FooDapp address + built-in ABI, but users can enter another contract address and query ABI from ConfluxScan. Queried ABIs are cached by lowercased address in `localStorage` under `eco-demo:eip-4337-abi-cache`; uncached addresses must query ABI before contract method calls are enabled.
 - EIP-7702 demo includes network selector, authorization list editor, nonce query, delegated transaction sender, and result panel.
 - Both demos now expose a top-left "返回首页" link for quicker navigation back to the home page.
 
@@ -47,6 +48,7 @@ Use `pnpm dev` for visual QA. Run `pnpm lint` and `pnpm build` before handoff or
 
 - `apps/eip-4337-demo/src/constants/contracts.ts`
 - `apps/eip-4337-demo/src/lib/accountAbstraction.ts`
+- `apps/eip-4337-demo/src/lib/contractCalls.ts`
 - `apps/eip-4337-demo/src/config/*`
 - `apps/eip-7702-demo/src/constants.ts`
 - `scripts/dev.mjs`
@@ -58,4 +60,3 @@ Use `pnpm dev` for visual QA. Run `pnpm lint` and `pnpm build` before handoff or
 
 - Demo home links currently use absolute `/`; verify behavior under GitHub Pages subpath deployment before treating this as finished.
 - 4337 guide modal wording and first-open behavior are still product decisions, not final design.
-

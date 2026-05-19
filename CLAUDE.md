@@ -32,7 +32,7 @@ pnpm build
 
 ## 当前状态速记
 
-- 4337 demo：钱包、运行配置、诊断、单笔/批量 UserOperation、批量 UserOps、引导弹窗已完成。
+- 4337 demo：钱包、运行配置、诊断、ABI 驱动的合约写方法调用、execute/executeBatch、CFX 转账、批量 UserOps、引导弹窗已完成。
+- 4337 调用构造器默认使用 FooDapp 地址和内置 ABI；其他合约通过 ConfluxScan ABI 查询，查询结果按地址缓存到 localStorage，未缓存地址必须先查询 ABI 才能构造合约调用。
 - 7702 demo：网络切换、授权列表、nonce 查询、委托交易发送、结果展示已完成。
 - 两个 demo 顶部已加“返回首页”入口，但 Pages 子路径可用性仍需确认。
-
