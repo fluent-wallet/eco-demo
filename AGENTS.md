@@ -2,7 +2,11 @@
 
 ## Read First
 
-Before changing code, read `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, and `docs/TODO.md`.
+Before changing code, read:
+
+- `docs/PROJECT_CONTEXT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/TODO.md`
 
 ## Project Summary
 
@@ -27,11 +31,12 @@ Before changing code, read `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, an
 
 ## Current State
 
-- Root shell and Pages build are already wired.
-- EIP-4337 demo includes wallet/config/contracts/diagnostics panels, ABI-driven contract write calls, CFX transfer calls, UserOperation prepare/send, executeBatch call lists, bulk UserOps, and guide modal.
-- EIP-4337 defaults to FooDapp address + built-in ABI, but users can enter another contract address and query ABI from ConfluxScan. Queried ABIs are cached by lowercased address in `localStorage` under `eco-demo:eip-4337-abi-cache`; uncached addresses must query ABI before contract method calls are enabled.
+- Root shell and Pages build are wired.
+- EIP-4337 demo includes topbar wallet control, multi-wallet connect modal, full address display, chain status/switching, runtime config, contracts, diagnostics, guide modal, ABI-driven write calls, CFX transfers, prepare/send UserOperation, executeBatch call lists, and bulk UserOps.
+- EIP-4337 defaults to FooDapp address + built-in ABI. Other verified contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`; uncached addresses must query ABI before contract method calls are enabled.
 - EIP-7702 demo includes network selector, authorization list editor, nonce query, delegated transaction sender, and result panel.
-- Both demos now expose a top-left "返回首页" link for quicker navigation back to the home page.
+- Both demos expose top-left `返回首页` links that work in local dev and GitHub Pages subpath deployments.
+- Production homepage labels the first app as `EIP-4337 Demo`.
 
 ## Commands
 
@@ -58,5 +63,6 @@ Use `pnpm dev` for visual QA. Run `pnpm lint` and `pnpm build` before handoff or
 
 ## Active Risks
 
-- Demo home links currently use absolute `/`; verify behavior under GitHub Pages subpath deployment before treating this as finished.
 - 4337 guide modal wording and first-open behavior are still product decisions, not final design.
+- 4337 ABI cache has no visible cache management yet.
+- ABI-driven call builder still needs broader contract-shape validation.

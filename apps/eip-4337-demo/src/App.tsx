@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAccount, useConnect, useDisconnect, useWalletClient } from 'wagmi'
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useSwitchChain,
+  useWalletClient,
+} from 'wagmi'
 import { isAddress, parseEther, type Abi, type Address, type Hex } from 'viem'
-import { getExplorerTxUrl } from './config/chains'
+import { confluxESpaceTestnet, getExplorerTxUrl } from './config/chains'
 import {
   DEFAULT_BUNDLER_URL,
   DEFAULT_PAYMASTER_ADDRESS,
@@ -129,50 +135,101 @@ function StatusPill({ state }: { state: AsyncState }) {
   return <span className={`pill pill-${state}`}>{label}</span>
 }
 
-function WalletPanel() {
-  const { connectors, connect, isPending } = useConnect()
+function WalletControl() {
+  const [walletModalOpen, setWalletModalOpen] = useState(false)
+  const { connectors, connect, error: connectError, isPending } = useConnect()
   const { address, chainId, isConnected, connector } = useAccount()
   const { disconnect } = useDisconnect()
+  const {
+    error: switchError,
+    isPending: switchPending,
+    switchChain,
+  } = useSwitchChain()
+  const isExpectedChain = chainId === confluxESpaceTestnet.id
+
+  useEffect(() => {
+    if (isConnected) setWalletModalOpen(false)
+  }, [isConnected])
 
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <h2>钱包</h2>
-        {isConnected && <span className="pill pill-success">已连接</span>}
-      </div>
+    <div className="wallet-control">
       {isConnected ? (
-        <div className="stack">
-          <div className="kv">
-            <span>账户</span>
+        <div className="wallet-status">
+          <div className="wallet-summary">
+            <span className="wallet-label">{connector?.name ?? '钱包'}</span>
             <code>{address}</code>
           </div>
-          <div className="kv">
-            <span>连接器</span>
-            <code>{connector?.name ?? '-'}</code>
-          </div>
-          <div className="kv">
-            <span>链 ID</span>
-            <code>{chainId ?? '-'}</code>
-          </div>
-          <button className="button secondary" onClick={() => disconnect()}>
-            断开连接
+          <span className={`pill ${isExpectedChain ? 'pill-success' : 'pill-error'}`}>
+            {isExpectedChain ? confluxESpaceTestnet.name : `链 ID ${chainId ?? '-'}`}
+          </span>
+          {!isExpectedChain && (
+            <button
+              className="button secondary"
+              disabled={switchPending}
+              onClick={() => switchChain({ chainId: confluxESpaceTestnet.id })}
+              type="button"
+            >
+              {switchPending ? '切换中...' : '切换网络'}
+            </button>
+          )}
+          <button
+            className="button secondary"
+            onClick={() => disconnect()}
+            type="button"
+          >
+            断开
           </button>
         </div>
       ) : (
-        <div className="stack">
-          {connectors.map((item) => (
-            <button
-              className="button"
-              disabled={isPending}
-              key={item.uid}
-              onClick={() => connect({ connector: item })}
-            >
-              连接 {item.name}
-            </button>
-          ))}
+        <button
+          className="button accent wallet-connect-button"
+          onClick={() => setWalletModalOpen(true)}
+          type="button"
+        >
+          连接钱包
+        </button>
+      )}
+      {switchError && <p className="wallet-error">{switchError.message}</p>}
+      {walletModalOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="wallet-modal-title"
+            aria-modal="true"
+            className="wallet-modal"
+            role="dialog"
+          >
+            <div className="modal-heading">
+              <div>
+                <h2 id="wallet-modal-title">连接钱包</h2>
+                <p>选择一个浏览器钱包连接到 4337 调试台。</p>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setWalletModalOpen(false)}
+                type="button"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="wallet-options">
+              {connectors.map((item) => (
+                <button
+                  className="wallet-option"
+                  disabled={isPending}
+                  key={item.uid}
+                  onClick={() => connect({ connector: item })}
+                  type="button"
+                >
+                  <span>{item.name}</span>
+                  <span>{isPending ? '连接中...' : '连接'}</span>
+                </button>
+              ))}
+            </div>
+            {connectError && <p className="wallet-error">{connectError.message}</p>}
+          </section>
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -1292,16 +1349,15 @@ function App() {
             返回首页
           </a>
           <div>
-            <h1>EIP-4337 + EIP-7702 Demo</h1>
+            <h1>EIP-4337 Demo</h1>
             <p>Conflux eSpace 测试网账户抽象调试台</p>
           </div>
         </div>
-        <div className="network-badge">链 ID 71</div>
+        <WalletControl />
       </header>
 
       <main className="layout">
         <aside className="sidebar">
-          <WalletPanel />
           <ConfigPanel
             bundlerUrl={bundlerUrl}
             setBundlerUrl={setBundlerUrl}

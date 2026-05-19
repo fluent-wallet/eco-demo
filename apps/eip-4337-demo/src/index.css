@@ -104,6 +104,98 @@ pre {
   white-space: nowrap;
 }
 
+.wallet-control {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+
+.wallet-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wallet-summary {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: min(100%, 360px);
+  border: 1px solid rgba(141, 152, 165, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 7px 10px;
+}
+
+.wallet-label {
+  color: #93a4ad;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.wallet-summary code {
+  color: #f4f7f8;
+  font-size: 12px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.wallet-connect-button {
+  min-width: 112px;
+}
+
+.wallet-modal {
+  width: min(420px, calc(100% - 32px));
+  border: 1px solid rgba(141, 152, 165, 0.22);
+  border-radius: 8px;
+  background: #181e23;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+  padding: 18px;
+}
+
+.wallet-options {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.wallet-option {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(141, 152, 165, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f7f8;
+  padding: 0 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wallet-option:hover:not(:disabled) {
+  border-color: rgba(91, 180, 167, 0.56);
+  background: rgba(91, 180, 167, 0.1);
+}
+
+.wallet-option span:last-child {
+  color: #8fe3d7;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.wallet-error {
+  max-width: 360px;
+  margin: 0;
+  color: #ffb8b8;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
@@ -606,5 +698,15 @@ pre {
   .bulk-result,
   .receipt-grid {
     grid-template-columns: 1fr;
+  }
+
+  .wallet-control {
+    justify-items: start;
+    width: 100%;
+  }
+
+  .wallet-status {
+    justify-content: flex-start;
+    width: 100%;
   }
 }
