@@ -968,6 +968,9 @@ function App() {
       selectedFunction.stateMutability === 'payable'
         ? parseEther(advancedValue || '0')
         : 0n
+    if (value < 0n) {
+      throw new Error('调用附带 CFX 不能为负数。')
+    }
 
     return {
       to: advancedContractAddress,
