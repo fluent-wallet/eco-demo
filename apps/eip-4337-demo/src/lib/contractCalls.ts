@@ -110,10 +110,18 @@ export function encodeWritableFunctionCall(
 
 function parseAbiValue(input: AbiParameter, rawValue: string | undefined): unknown {
   const value = rawValue?.trim() ?? ''
-  if (input.type.endsWith('[]')) {
-    const itemType = input.type.slice(0, -2)
+  const arrayType = parseArrayType(input.type)
+  if (arrayType) {
     const items = parseArrayInput(value)
-    return items.map((item) => parseAbiValue({ ...input, type: itemType }, item))
+    if (arrayType.length !== null && items.length !== arrayType.length) {
+      throw new Error(
+        `${getInputLabel(input)} 需要 ${arrayType.length} 个元素，当前为 ${items.length} 个。`,
+      )
+    }
+
+    return items.map((item) =>
+      parseAbiValue({ ...input, type: arrayType.itemType }, item),
+    )
   }
 
   if (input.type === 'tuple' || input.type.startsWith('tuple[')) {
@@ -168,6 +176,16 @@ function parseArrayInput(value: string) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+function parseArrayType(type: string) {
+  const match = type.match(/^(.*)\[(\d*)\]$/)
+  if (!match) return null
+
+  return {
+    itemType: match[1],
+    length: match[2] ? Number.parseInt(match[2], 10) : null,
+  }
 }
 
 function getInputLabel(input: AbiParameter) {
