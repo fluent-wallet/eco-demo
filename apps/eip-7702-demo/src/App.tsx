@@ -14,6 +14,31 @@ type AuthorizationInput = {
   nonce: number | undefined;
 };
 
+const DEV_SHELL_PORT = "4173";
+const APP_ROUTE_SEGMENT = "eip-7702";
+
+function getHomeHref() {
+  if (import.meta.env.DEV) {
+    return `${window.location.protocol}//${window.location.hostname}:${DEV_SHELL_PORT}/`;
+  }
+
+  const currentUrl = new URL(window.location.href);
+  const pathParts = currentUrl.pathname.split("/").filter(Boolean);
+  const appRouteIndex = pathParts.lastIndexOf(APP_ROUTE_SEGMENT);
+  const homeParts =
+    appRouteIndex >= 0
+      ? pathParts.slice(0, appRouteIndex)
+      : pathParts.slice(0, -1);
+
+  currentUrl.pathname = `/${homeParts.join("/")}${
+    homeParts.length > 0 ? "/" : ""
+  }`;
+  currentUrl.search = "";
+  currentUrl.hash = "";
+
+  return currentUrl.toString();
+}
+
 const emptyAuthorization = (): AuthorizationInput => ({
   eoaPK: "",
   delegatedTo: "",
@@ -65,6 +90,7 @@ function App() {
       authorizationList.filter((item) => item.eoaPK && item.delegatedTo).length,
     [authorizationList],
   );
+  const homeHref = getHomeHref();
 
   const updateAuthorization = (
     index: number,
@@ -153,7 +179,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-left">
-          <a className="home-link" href="/">
+          <a className="home-link" href={homeHref} target="_top">
             返回首页
           </a>
           <div>
