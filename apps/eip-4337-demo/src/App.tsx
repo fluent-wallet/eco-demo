@@ -55,6 +55,30 @@ type BulkUserOperationResult = {
 
 const GUIDE_DISMISSED_KEY = 'eco-demo:eip-4337-guide-dismissed'
 const ABI_CACHE_STORAGE_KEY = 'eco-demo:eip-4337-abi-cache'
+const DEV_SHELL_PORT = '4173'
+const APP_ROUTE_SEGMENT = 'eip-4337'
+
+function getHomeHref() {
+  if (import.meta.env.DEV) {
+    return `${window.location.protocol}//${window.location.hostname}:${DEV_SHELL_PORT}/`
+  }
+
+  const currentUrl = new URL(window.location.href)
+  const pathParts = currentUrl.pathname.split('/').filter(Boolean)
+  const appRouteIndex = pathParts.lastIndexOf(APP_ROUTE_SEGMENT)
+  const homeParts =
+    appRouteIndex >= 0
+      ? pathParts.slice(0, appRouteIndex)
+      : pathParts.slice(0, -1)
+
+  currentUrl.pathname = `/${homeParts.join('/')}${
+    homeParts.length > 0 ? '/' : ''
+  }`
+  currentUrl.search = ''
+  currentUrl.hash = ''
+
+  return currentUrl.toString()
+}
 
 function getAddressCacheKey(address: string) {
   return address.toLowerCase()
@@ -812,6 +836,7 @@ function App() {
   const [guideOpen, setGuideOpen] = useState(
     () => localStorage.getItem(GUIDE_DISMISSED_KEY) !== '1',
   )
+  const homeHref = getHomeHref()
 
   const canUseConfig =
     bundlerUrl.trim().length > 0 &&
@@ -1263,7 +1288,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-left">
-          <a className="home-link" href="/">
+          <a className="home-link" href={homeHref} target="_top">
             返回首页
           </a>
           <div>
