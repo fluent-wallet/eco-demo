@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useWalletClient } from 'wagmi'
-import { isAddress, parseEther, type Address, type Hex } from 'viem'
+import { isAddress, parseEther, type Abi, type Address, type Hex } from 'viem'
 import { getExplorerTxUrl } from './config/chains'
 import {
   DEFAULT_BUNDLER_URL,
@@ -11,15 +11,22 @@ import {
   SMART_ACCOUNT_IMPLEMENTATION,
 } from './constants/contracts'
 import {
+  encodeWritableFunctionCall,
+  fetchContractAbi,
+  FOO_DAPP_ABI,
+  formatFunctionSignature,
+  getFunctionKey,
+  getWritableFunctions,
+  type WritableAbiFunction,
+} from './lib/contractCalls'
+import {
   explainUserOperationError,
   formatCfx,
-  getFooCallData,
   loadDiagnostics,
   normalizeAddress,
   prepareDemoUserOperation,
   sendDemoUserOperation,
   stringifyUserOperation,
-  type FooCallPreset,
 } from './lib/accountAbstraction'
 import type {
   AccountMode,
@@ -31,8 +38,12 @@ import type {
 
 type AsyncState = 'idle' | 'loading' | 'success' | 'error'
 type OperationMode = 'single' | 'batch'
-type BatchFooCall = 'deposit' | 'transfer' | 'withdraw'
+type AbiLoadState = 'idle' | 'loading' | 'success' | 'error'
 type UserOperationCall = { to: Address; data: Hex; value: bigint }
+type AdvancedBatchCall = UserOperationCall & {
+  id: string
+  label: string
+}
 type BulkUserOperationResult = {
   owner: 'wallet' | 'privateKey'
   index: number
@@ -43,6 +54,40 @@ type BulkUserOperationResult = {
 }
 
 const GUIDE_DISMISSED_KEY = 'eco-demo:eip-4337-guide-dismissed'
+const ABI_CACHE_STORAGE_KEY = 'eco-demo:eip-4337-abi-cache'
+
+function getAddressCacheKey(address: string) {
+  return address.toLowerCase()
+}
+
+function getDefaultAbiCache(): Record<string, Abi> {
+  return {
+    [getAddressCacheKey(FOO_DAPP_ADDRESS)]: FOO_DAPP_ABI,
+  }
+}
+
+function loadAbiCache() {
+  const defaultCache = getDefaultAbiCache()
+  try {
+    const rawCache = localStorage.getItem(ABI_CACHE_STORAGE_KEY)
+    if (!rawCache) return defaultCache
+    const parsed = JSON.parse(rawCache) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return defaultCache
+    }
+
+    return {
+      ...defaultCache,
+      ...(parsed as Record<string, Abi>),
+    }
+  } catch {
+    return defaultCache
+  }
+}
+
+function saveAbiCache(cache: Record<string, Abi>) {
+  localStorage.setItem(ABI_CACHE_STORAGE_KEY, JSON.stringify(cache))
+}
 
 function compact(value: string | undefined) {
   if (!value) return '-'
@@ -117,8 +162,9 @@ function GuideContent() {
           <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔 aa 交易的发起人是智能账户还是钱包账户自身。</li>
           <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
           <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas，需要提前转入。</li>
-          <li>在右侧选择单次执行或批量执行，点击“准备 UserOperation”查看请求内容。</li>
+          <li>在右侧选择 execute 或 executeBatch，点击“准备 UserOperation”查看请求内容。</li>
           <li>确认请求无误后点击“发送 UserOperation”，等待 Bundler 返回 UserOp 哈希和链上交易结果。</li>
+          <li>可以更改目标合约地址自定义操作内容，比如在一个userOp中包含多个合约的多个调用。</li>
         </ol>
       </section>
       <section>
@@ -356,18 +402,28 @@ function DiagnosticsPanel({
 function OperationPanel({
   operationMode,
   setOperationMode,
-  callPreset,
-  setCallPreset,
-  batchCalls,
-  setBatchCalls,
-  batchTransferEnabled,
-  setBatchTransferEnabled,
-  batchTransferTo,
-  setBatchTransferTo,
-  batchTransferAmount,
-  setBatchTransferAmount,
-  customCallData,
-  setCustomCallData,
+  advancedContractAddress,
+  setAdvancedContractAddress,
+  advancedFunctions,
+  selectedAdvancedFunctionKey,
+  setSelectedAdvancedFunctionKey,
+  advancedArgs,
+  setAdvancedArg,
+  advancedValue,
+  setAdvancedValue,
+  advancedTransferEnabled,
+  setAdvancedTransferEnabled,
+  advancedTransferTo,
+  setAdvancedTransferTo,
+  advancedTransferAmount,
+  setAdvancedTransferAmount,
+  advancedBatchCalls,
+  abiStatus,
+  abiError,
+  onLoadAbi,
+  onAddAdvancedCall,
+  onAddAdvancedTransfer,
+  onRemoveAdvancedCall,
   prepared,
   result,
   bulkCount,
@@ -384,18 +440,28 @@ function OperationPanel({
 }: {
   operationMode: OperationMode
   setOperationMode: (value: OperationMode) => void
-  callPreset: FooCallPreset
-  setCallPreset: (value: FooCallPreset) => void
-  batchCalls: BatchFooCall[]
-  setBatchCalls: (value: BatchFooCall[]) => void
-  batchTransferEnabled: boolean
-  setBatchTransferEnabled: (value: boolean) => void
-  batchTransferTo: string
-  setBatchTransferTo: (value: string) => void
-  batchTransferAmount: string
-  setBatchTransferAmount: (value: string) => void
-  customCallData: string
-  setCustomCallData: (value: string) => void
+  advancedContractAddress: string
+  setAdvancedContractAddress: (value: string) => void
+  advancedFunctions: WritableAbiFunction[]
+  selectedAdvancedFunctionKey: string
+  setSelectedAdvancedFunctionKey: (value: string) => void
+  advancedArgs: string[]
+  setAdvancedArg: (index: number, value: string) => void
+  advancedValue: string
+  setAdvancedValue: (value: string) => void
+  advancedTransferEnabled: boolean
+  setAdvancedTransferEnabled: (value: boolean) => void
+  advancedTransferTo: string
+  setAdvancedTransferTo: (value: string) => void
+  advancedTransferAmount: string
+  setAdvancedTransferAmount: (value: string) => void
+  advancedBatchCalls: AdvancedBatchCall[]
+  abiStatus: AbiLoadState
+  abiError: string | null
+  onLoadAbi: () => void
+  onAddAdvancedCall: () => void
+  onAddAdvancedTransfer: () => void
+  onRemoveAdvancedCall: (id: string) => void
   prepared: PreparedUserOperation | null
   result: UserOperationResult | null
   bulkCount: string
@@ -410,16 +476,10 @@ function OperationPanel({
   onBulkSend: () => void
   onOpenGuide: () => void
 }) {
-  const callData = useMemo(
-    () => getFooCallData(callPreset, customCallData),
-    [callPreset, customCallData],
+  const selectedAdvancedFunction = advancedFunctions.find(
+    (item, index) =>
+      getFunctionKey(item, index) === selectedAdvancedFunctionKey,
   )
-  const toggleBatchCall = (value: BatchFooCall) => {
-    const nextCalls = batchCalls.includes(value)
-      ? batchCalls.filter((item) => item !== value)
-      : [...batchCalls, value]
-    setBatchCalls(nextCalls)
-  }
 
   return (
     <section className="workbench">
@@ -437,7 +497,7 @@ function OperationPanel({
       </div>
 
       <div className="form-grid">
-        <label className="field">
+        <label className="field wide-field">
           <span>执行模式</span>
           <select
             value={operationMode}
@@ -445,89 +505,166 @@ function OperationPanel({
               setOperationMode(event.target.value as OperationMode)
             }
           >
-            <option value="single">单次执行</option>
-            <option value="batch">批量执行</option>
+            <option value="single">execute</option>
+            <option value="batch">executeBatch</option>
           </select>
         </label>
-        <label className="field">
-          <span>FooDapp 调用</span>
+        <label className="field wide-field">
+          <span>目标合约地址</span>
+          <div className="inline-field">
+            <input
+              value={advancedContractAddress}
+              onChange={(event) => setAdvancedContractAddress(event.target.value)}
+              placeholder="0x..."
+            />
+            <button
+              className="button secondary"
+              disabled={abiStatus === 'loading'}
+              onClick={onLoadAbi}
+              type="button"
+            >
+              {abiStatus === 'loading' ? '查询中' : '查询 ABI'}
+            </button>
+          </div>
+        </label>
+        <label className="field wide-field">
+          <span>写方法</span>
           <select
-            disabled={operationMode === 'batch'}
-            value={callPreset}
+            disabled={advancedFunctions.length === 0}
+            value={selectedAdvancedFunctionKey}
             onChange={(event) =>
-              setCallPreset(event.target.value as FooCallPreset)
+              setSelectedAdvancedFunctionKey(event.target.value)
             }
           >
-            <option value="deposit">deposit()（存入）</option>
-            <option value="transfer">transfer()（转移）</option>
-            <option value="withdraw">withdraw()（取回）</option>
-            <option value="custom">自定义 calldata</option>
+            {advancedFunctions.length === 0 ? (
+              <option value="">请先查询 ABI</option>
+            ) : (
+              advancedFunctions.map((item, index) => (
+                <option value={getFunctionKey(item, index)} key={getFunctionKey(item, index)}>
+                  {formatFunctionSignature(item)}
+                </option>
+              ))
+            )}
           </select>
         </label>
-        {operationMode === 'single' ? (
-          <label className="field wide-field">
-            <span>调用数据</span>
-            <input
-              disabled={callPreset !== 'custom'}
-              value={callPreset === 'custom' ? customCallData : callData}
-              onChange={(event) => setCustomCallData(event.target.value)}
-            />
-          </label>
-        ) : (
-          <>
-            <div className="field wide-field">
-              <span>批量 FooDapp 调用</span>
-              <div className="check-row">
-                {(['deposit', 'transfer', 'withdraw'] as const).map((item) => (
-                  <label className="check-option" key={item}>
-                    <input
-                      type="checkbox"
-                      checked={batchCalls.includes(item)}
-                      onChange={() => toggleBatchCall(item)}
-                    />
-                    <span>{item}()</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="field wide-field">
-              <span>批量 CFX 转账</span>
-              <label className="check-option fit-option">
+        {selectedAdvancedFunction
+          ? selectedAdvancedFunction.inputs.map((input, index) => (
+              <label
+                className="field"
+                key={`${input.name || input.type}-${index}`}
+              >
+                <span>
+                  {input.name || `参数 ${index + 1}`} · {input.type}
+                </span>
                 <input
-                  type="checkbox"
-                  checked={batchTransferEnabled}
+                  value={advancedArgs[index] ?? ''}
                   onChange={(event) =>
-                    setBatchTransferEnabled(event.target.checked)
+                    setAdvancedArg(index, event.target.value)
+                  }
+                  placeholder={
+                    input.type.endsWith('[]')
+                      ? 'JSON 数组或逗号分隔'
+                      : input.type.startsWith('tuple')
+                        ? 'JSON'
+                        : input.type
                   }
                 />
-                <span>包含 CFX 转账</span>
+              </label>
+            ))
+          : null}
+        {selectedAdvancedFunction?.stateMutability === 'payable' && (
+          <label className="field">
+            <span>调用附带 CFX</span>
+            <input
+              value={advancedValue}
+              onChange={(event) => setAdvancedValue(event.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+            />
+          </label>
+        )}
+        <div className="field wide-field">
+          <span>CFX 转账</span>
+          {operationMode === 'single' && (
+            <label className="check-option fit-option">
+              <input
+                type="checkbox"
+                checked={advancedTransferEnabled}
+                onChange={(event) =>
+                  setAdvancedTransferEnabled(event.target.checked)
+                }
+              />
+              <span>本次仅执行 CFX 转账</span>
+            </label>
+          )}
+          {(operationMode === 'batch' || advancedTransferEnabled) && (
+            <div className="transfer-grid">
+              <label className="field">
+                <span>接收地址</span>
+                <input
+                  value={advancedTransferTo}
+                  onChange={(event) =>
+                    setAdvancedTransferTo(event.target.value)
+                  }
+                  placeholder="0x..."
+                />
+              </label>
+              <label className="field">
+                <span>CFX 数量</span>
+                <input
+                  value={advancedTransferAmount}
+                  onChange={(event) =>
+                    setAdvancedTransferAmount(event.target.value)
+                  }
+                  inputMode="decimal"
+                  placeholder="0.01"
+                />
               </label>
             </div>
-            {batchTransferEnabled && (
-              <div className="transfer-grid wide-field">
-                <label className="field">
-                  <span>接收地址</span>
-                  <input
-                    value={batchTransferTo}
-                    onChange={(event) => setBatchTransferTo(event.target.value)}
-                    placeholder="0x..."
-                  />
-                </label>
-                <label className="field">
-                  <span>CFX 数量</span>
-                  <input
-                    value={batchTransferAmount}
-                    onChange={(event) =>
-                      setBatchTransferAmount(event.target.value)
-                    }
-                    inputMode="decimal"
-                    placeholder="0.01"
-                  />
-                </label>
+          )}
+        </div>
+        {operationMode === 'batch' && (
+          <div className="field wide-field">
+            <span>批量调用</span>
+            <div className="advanced-batch-actions">
+              <button
+                className="button secondary"
+                disabled={!selectedAdvancedFunction}
+                onClick={onAddAdvancedCall}
+                type="button"
+              >
+                添加当前调用
+              </button>
+              <button
+                className="button secondary"
+                onClick={onAddAdvancedTransfer}
+                type="button"
+              >
+                添加 CFX 转账
+              </button>
+              <code>{advancedBatchCalls.length} 个调用</code>
+            </div>
+            {advancedBatchCalls.length > 0 && (
+              <div className="advanced-call-list">
+                {advancedBatchCalls.map((item, index) => (
+                  <div className="advanced-call-item" key={item.id}>
+                    <span>#{index + 1}</span>
+                    <code title={item.to}>{item.label}</code>
+                    <code title={item.to}>{compact(item.to)}</code>
+                    <button
+                      className="icon-button"
+                      onClick={() => onRemoveAdvancedCall(item.id)}
+                      type="button"
+                    >
+                      移除
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
-          </>
+          </div>
         )}
+        {abiError && <div className="alert wide-field">{abiError}</div>}
       </div>
 
       <div className="action-row">
@@ -638,16 +775,25 @@ function App() {
   const [ownerMode, setOwnerMode] = useState<OwnerMode>('wallet')
   const [ownerPrivateKey, setOwnerPrivateKey] = useState('')
   const [operationMode, setOperationMode] = useState<OperationMode>('single')
-  const [callPreset, setCallPreset] = useState<FooCallPreset>('deposit')
-  const [batchCalls, setBatchCalls] = useState<BatchFooCall[]>([
-    'deposit',
-    'transfer',
-    'withdraw',
-  ])
-  const [batchTransferEnabled, setBatchTransferEnabled] = useState(false)
-  const [batchTransferTo, setBatchTransferTo] = useState('')
-  const [batchTransferAmount, setBatchTransferAmount] = useState('')
-  const [customCallData, setCustomCallData] = useState('0x')
+  const defaultFooFunctions = getWritableFunctions(FOO_DAPP_ABI)
+  const [abiCache, setAbiCache] = useState<Record<string, Abi>>(loadAbiCache)
+  const [advancedContractAddress, setAdvancedContractAddress] =
+    useState<string>(FOO_DAPP_ADDRESS)
+  const [advancedFunctions, setAdvancedFunctions] = useState<
+    WritableAbiFunction[]
+  >(defaultFooFunctions)
+  const [selectedAdvancedFunctionKey, setSelectedAdvancedFunctionKey] =
+    useState(() => getFunctionKey(defaultFooFunctions[0], 0))
+  const [advancedArgs, setAdvancedArgs] = useState<string[]>([])
+  const [advancedValue, setAdvancedValue] = useState('')
+  const [advancedTransferEnabled, setAdvancedTransferEnabled] = useState(false)
+  const [advancedTransferTo, setAdvancedTransferTo] = useState('')
+  const [advancedTransferAmount, setAdvancedTransferAmount] = useState('')
+  const [advancedBatchCalls, setAdvancedBatchCalls] = useState<
+    AdvancedBatchCall[]
+  >([])
+  const [abiStatus, setAbiStatus] = useState<AbiLoadState>('idle')
+  const [abiError, setAbiError] = useState<string | null>(null)
   const [prepared, setPrepared] = useState<PreparedUserOperation | null>(null)
   const [result, setResult] = useState<UserOperationResult | null>(null)
   const [bulkCount, setBulkCount] = useState('3')
@@ -694,6 +840,47 @@ function App() {
     void refreshDiagnostics()
   }, [refreshDiagnostics])
 
+  useEffect(() => {
+    if (!isAddress(advancedContractAddress)) {
+      setAdvancedFunctions([])
+      setSelectedAdvancedFunctionKey('')
+      setAdvancedArgs([])
+      setAdvancedValue('')
+      setAbiStatus('idle')
+      setAbiError(null)
+      return
+    }
+
+    const cachedAbi = abiCache[getAddressCacheKey(advancedContractAddress)]
+    if (!cachedAbi) {
+      setAdvancedFunctions([])
+      setSelectedAdvancedFunctionKey('')
+      setAdvancedArgs([])
+      setAdvancedValue('')
+      setAbiStatus('idle')
+      setAbiError('该合约地址还没有 ABI 缓存，请先点击“查询 ABI”。')
+      return
+    }
+
+    const writableFunctions = getWritableFunctions(cachedAbi)
+    if (writableFunctions.length === 0) {
+      setAdvancedFunctions([])
+      setSelectedAdvancedFunctionKey('')
+      setAdvancedArgs([])
+      setAdvancedValue('')
+      setAbiStatus('error')
+      setAbiError('该 ABI 中没有 nonpayable 或 payable 写方法。')
+      return
+    }
+
+    setAdvancedFunctions(writableFunctions)
+    setSelectedAdvancedFunctionKey(getFunctionKey(writableFunctions[0], 0))
+    setAdvancedArgs(writableFunctions[0].inputs.map(() => ''))
+    setAdvancedValue('')
+    setAbiStatus('success')
+    setAbiError(null)
+  }, [abiCache, advancedContractAddress])
+
   const closeGuide = () => {
     localStorage.setItem(GUIDE_DISMISSED_KEY, '1')
     setGuideOpen(false)
@@ -706,54 +893,175 @@ function App() {
           : `0x${ownerPrivateKey}`) as Hex
       : undefined
 
+  const setAdvancedArg = (index: number, value: string) => {
+    setAdvancedArgs((current) => {
+      const next = [...current]
+      next[index] = value
+      return next
+    })
+  }
+
+  const selectAdvancedFunction = (value: string) => {
+    setSelectedAdvancedFunctionKey(value)
+    const selected = advancedFunctions.find(
+      (item, index) => getFunctionKey(item, index) === value,
+    )
+    setAdvancedArgs(selected?.inputs.map(() => '') ?? [])
+    setAdvancedValue('')
+  }
+
+  const loadAdvancedAbi = async () => {
+    setAbiStatus('loading')
+    setAbiError(null)
+    setAdvancedFunctions([])
+    setSelectedAdvancedFunctionKey('')
+    setAdvancedArgs([])
+
+    try {
+      if (!isAddress(advancedContractAddress)) {
+        throw new Error('请填写有效的目标合约地址。')
+      }
+
+      const abi = await fetchContractAbi(advancedContractAddress)
+      const writableFunctions = getWritableFunctions(abi)
+      if (writableFunctions.length === 0) {
+        throw new Error('该 ABI 中没有 nonpayable 或 payable 写方法。')
+      }
+
+      setAbiCache((current) => {
+        const next = {
+          ...current,
+          [getAddressCacheKey(advancedContractAddress)]: abi,
+        }
+        saveAbiCache(next)
+        return next
+      })
+      const firstKey = getFunctionKey(writableFunctions[0], 0)
+      setAdvancedFunctions(writableFunctions)
+      setSelectedAdvancedFunctionKey(firstKey)
+      setAdvancedArgs(writableFunctions[0].inputs.map(() => ''))
+      setAdvancedValue('')
+      setAbiStatus('success')
+    } catch (caught) {
+      setAbiError(caught instanceof Error ? caught.message : 'ABI 查询失败。')
+      setAbiStatus('error')
+    }
+  }
+
+  const buildAdvancedCall = (): UserOperationCall => {
+    if (!isAddress(advancedContractAddress)) {
+      throw new Error('请填写有效的目标合约地址。')
+    }
+    if (!abiCache[getAddressCacheKey(advancedContractAddress)]) {
+      throw new Error('该合约地址还没有 ABI 缓存，请先点击“查询 ABI”。')
+    }
+
+    const selectedFunction = advancedFunctions.find(
+      (item, index) =>
+        getFunctionKey(item, index) === selectedAdvancedFunctionKey,
+    )
+    if (!selectedFunction) {
+      throw new Error('请先查询 ABI 并选择一个写方法。')
+    }
+
+    const value =
+      selectedFunction.stateMutability === 'payable'
+        ? parseEther(advancedValue || '0')
+        : 0n
+    if (value < 0n) {
+      throw new Error('调用附带 CFX 不能为负数。')
+    }
+
+    return {
+      to: advancedContractAddress,
+      data: encodeWritableFunctionCall(selectedFunction, advancedArgs),
+      value,
+    }
+  }
+
+  const buildAdvancedTransferCall = (): UserOperationCall => {
+    if (!isAddress(advancedTransferTo)) {
+      throw new Error('请填写有效的 CFX 转账接收地址。')
+    }
+
+    const value = parseEther(advancedTransferAmount || '0')
+    if (value <= 0n) {
+      throw new Error('请填写大于 0 的 CFX 转账数量。')
+    }
+
+    return {
+      to: advancedTransferTo,
+      data: '0x' as Hex,
+      value,
+    }
+  }
+
+  const addAdvancedBatchCall = () => {
+    setAbiError(null)
+
+    try {
+      const selectedFunction = advancedFunctions.find(
+        (item, index) =>
+          getFunctionKey(item, index) === selectedAdvancedFunctionKey,
+      )
+      if (!selectedFunction) {
+        throw new Error('请先查询 ABI 并选择一个写方法。')
+      }
+
+      const call = buildAdvancedCall()
+      setAdvancedBatchCalls((current) => [
+        ...current,
+        {
+          ...call,
+          id: `${Date.now()}-${current.length}`,
+          label: formatFunctionSignature(selectedFunction),
+        },
+      ])
+    } catch (caught) {
+      setAbiError(caught instanceof Error ? caught.message : '添加调用失败。')
+    }
+  }
+
+  const addAdvancedBatchTransfer = () => {
+    setAbiError(null)
+
+    try {
+      const call = buildAdvancedTransferCall()
+      setAdvancedBatchCalls((current) => [
+        ...current,
+        {
+          ...call,
+          id: `${Date.now()}-${current.length}`,
+          label: `CFX 转账 ${advancedTransferAmount || '0'} CFX`,
+        },
+      ])
+    } catch (caught) {
+      setAbiError(caught instanceof Error ? caught.message : '添加转账失败。')
+    }
+  }
+
+  const removeAdvancedBatchCall = (id: string) => {
+    setAdvancedBatchCalls((current) => current.filter((item) => item.id !== id))
+  }
+
   const buildCalls = (): UserOperationCall[] => {
-    if (
-      operationMode === 'batch' &&
-      batchCalls.length === 0 &&
-      !batchTransferEnabled
-    ) {
-      throw new Error('请至少选择一个批量调用。')
-    }
-
-    let batchTransferRecipient: Address | undefined
-    let batchTransferValue = 0n
-    if (operationMode === 'batch' && batchTransferEnabled) {
-      if (!isAddress(batchTransferTo)) {
-        throw new Error('请填写有效的 CFX 转账接收地址。')
-      }
-      batchTransferRecipient = batchTransferTo
-      batchTransferValue = parseEther(batchTransferAmount || '0')
-      if (batchTransferValue <= 0n) {
-        throw new Error('请填写大于 0 的 CFX 转账数量。')
-      }
-    }
-
     if (operationMode === 'batch') {
-      return [
-        ...batchCalls.map((item) => ({
-          to: FOO_DAPP_ADDRESS,
-          data: getFooCallData(item, customCallData),
-          value: 0n,
-        })),
-        ...(batchTransferEnabled
-          ? [
-              {
-                to: batchTransferRecipient!,
-                data: '0x' as Hex,
-                value: batchTransferValue,
-              },
-            ]
-          : []),
-      ]
+      if (advancedBatchCalls.length === 0) {
+        throw new Error('请至少添加一个批量调用。')
+      }
+
+      return advancedBatchCalls.map(({ to, data, value }) => ({
+        to,
+        data,
+        value,
+      }))
     }
 
-    return [
-      {
-        to: FOO_DAPP_ADDRESS,
-        data: getFooCallData(callPreset, customCallData),
-        value: 0n,
-      },
-    ]
+    if (advancedTransferEnabled) {
+      return [buildAdvancedTransferCall()]
+    }
+
+    return [buildAdvancedCall()]
   }
 
   const buildParams = async () => {
@@ -999,18 +1307,28 @@ function App() {
           <OperationPanel
             operationMode={operationMode}
             setOperationMode={setOperationMode}
-            callPreset={callPreset}
-            setCallPreset={setCallPreset}
-            batchCalls={batchCalls}
-            setBatchCalls={setBatchCalls}
-            batchTransferEnabled={batchTransferEnabled}
-            setBatchTransferEnabled={setBatchTransferEnabled}
-            batchTransferTo={batchTransferTo}
-            setBatchTransferTo={setBatchTransferTo}
-            batchTransferAmount={batchTransferAmount}
-            setBatchTransferAmount={setBatchTransferAmount}
-            customCallData={customCallData}
-            setCustomCallData={setCustomCallData}
+            advancedContractAddress={advancedContractAddress}
+            setAdvancedContractAddress={setAdvancedContractAddress}
+            advancedFunctions={advancedFunctions}
+            selectedAdvancedFunctionKey={selectedAdvancedFunctionKey}
+            setSelectedAdvancedFunctionKey={selectAdvancedFunction}
+            advancedArgs={advancedArgs}
+            setAdvancedArg={setAdvancedArg}
+            advancedValue={advancedValue}
+            setAdvancedValue={setAdvancedValue}
+            advancedTransferEnabled={advancedTransferEnabled}
+            setAdvancedTransferEnabled={setAdvancedTransferEnabled}
+            advancedTransferTo={advancedTransferTo}
+            setAdvancedTransferTo={setAdvancedTransferTo}
+            advancedTransferAmount={advancedTransferAmount}
+            setAdvancedTransferAmount={setAdvancedTransferAmount}
+            advancedBatchCalls={advancedBatchCalls}
+            abiStatus={abiStatus}
+            abiError={abiError}
+            onLoadAbi={() => void loadAdvancedAbi()}
+            onAddAdvancedCall={addAdvancedBatchCall}
+            onAddAdvancedTransfer={addAdvancedBatchTransfer}
+            onRemoveAdvancedCall={removeAdvancedBatchCall}
             prepared={prepared}
             result={result}
             bulkCount={bulkCount}

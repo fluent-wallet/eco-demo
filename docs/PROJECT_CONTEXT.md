@@ -31,7 +31,7 @@ eco-demo/
 ## Completed Modules
 
 - Root workspace commands, local shell, Pages build flow
-- 4337 demo: wallet/config/contracts/diagnostics panels, prepare/send UserOperation, batch execute, bulk UserOps, guide modal
+- 4337 demo: wallet/config/contracts/diagnostics panels, ABI-driven write-call builder, prepare/send UserOperation, executeBatch call list, CFX transfer calls, bulk UserOps, guide modal
 - 7702 demo: network selector, authorization list editor, nonce query, delegated transaction sender, result display
 - Both demos: top-left home link back to the root home page
 
@@ -39,6 +39,7 @@ eco-demo/
 
 - Verify demo home links under GitHub Pages subpath deployment; current implementation uses absolute `/`
 - Confirm 4337 guide modal copy and whether first-open behavior needs a visible reset action
+- Consider whether 4337 ABI cache needs a visible clear/reset action
 - Decide README language strategy: Chinese, English, or bilingual
 - Add Pages smoke checks after `pnpm build` if deployment regressions become common
 
@@ -48,6 +49,9 @@ eco-demo/
 - Local dev and production build stay separate by design
 - Generated `dist/` is output only; source of truth lives in app code and scripts
 - 4337 instructions stay in a modal to keep the workbench compact
+- 4337 operation UI is now a single advanced-first call builder, not a separate beginner/advanced split
+- 4337 defaults to FooDapp address and built-in FooDapp ABI. Other contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`
+- 4337 contract method calls require a cached ABI; uncached addresses must run ABI query first. CFX transfer calls do not require ABI
 - Private-key flows are test/debug only and must remain visibly warned
 
 ## Commands
@@ -69,9 +73,9 @@ Local shell routes during `pnpm dev`:
 
 - `apps/eip-4337-demo/src/constants/contracts.ts`
 - `apps/eip-4337-demo/src/lib/accountAbstraction.ts`
+- `apps/eip-4337-demo/src/lib/contractCalls.ts`
 - `apps/eip-4337-demo/src/config/*`
 - `apps/eip-7702-demo/src/constants.ts`
 - `scripts/dev.mjs`
 - `scripts/build-pages.mjs`
 - `.github/workflows/pages.yml`
-

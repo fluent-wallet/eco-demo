@@ -31,6 +31,10 @@ The repo has two layers:
 - owns 4337 wallet/account abstraction flows
 - critical logic lives in `src/lib/accountAbstraction.ts`
 - contract and endpoint defaults live under `src/constants` and `src/config`
+- contract ABI lookup and ABI parameter encoding live in `src/lib/contractCalls.ts`
+- the operation panel builds generic calls as `{ to, data, value }[]`; `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`
+- FooDapp remains the default sample via built-in ABI, but the UI is ABI-driven and can query other verified contracts from ConfluxScan
+- ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config or source of truth
 
 ### `apps/eip-7702-demo`
 
@@ -48,3 +52,4 @@ The repo has two layers:
 - Do not edit generated `dist/`
 - Do not change app ports or Pages route mapping in isolation
 - When adding a demo, update both local shell routing and production build routing together
+- Keep 4337 smart account signing/sending changes separated from UI call-builder changes unless the UserOperation contract changes require both
