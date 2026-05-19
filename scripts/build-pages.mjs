@@ -9,7 +9,7 @@ const outputDir = resolve(root, 'dist')
 
 const apps = [
   {
-    name: 'EIP-4337 + EIP-7702 Demo',
+    name: 'EIP-4337 Demo',
     description: 'Observe EIP-4337 UserOperations with smart account and EIP-7702 flows on Conflux eSpace Testnet.',
     packageName: '@eco-demo/eip-4337-demo',
     sourceDir: resolve(root, 'apps/eip-4337-demo/dist'),

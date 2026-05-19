@@ -1,21 +1,12 @@
 # CLAUDE.md
 
-AI 接手本仓库时先阅读 `AGENTS.md`、`docs/PROJECT_CONTEXT.md`、`docs/ARCHITECTURE.md`、`docs/TODO.md`。本文件只保留快速约束。
+AI 接手本仓库时先读 `AGENTS.md`、`docs/PROJECT_CONTEXT.md`、`docs/ARCHITECTURE.md`、`docs/TODO.md`。本文件只保留快速约束。
 
-## 目标
+## Project
 
-`eco-demo` 是用于沉淀小型链上流程 demo 的 pnpm monorepo。当前包含 EIP-4337 和 EIP-7702 两个 demo，通过根本地壳页统一预览，通过 GitHub Pages 统一发布。
+`eco-demo` 是 Conflux eSpace 工作流 demo 的 pnpm monorepo。当前范围是 EIP-4337 account abstraction 和 EIP-7702 authorization/delegated transaction flows；本地用统一 shell 预览，生产构建生成根 `dist/` 发布到 GitHub Pages。
 
-## 必守规则
-
-- 不要直接改生成产物 `dist/`、`apps/*/dist/`、`node_modules/`。
-- 生产 Pages 路由只通过 `scripts/build-pages.mjs` 维护。
-- 本地统一预览入口只通过 `scripts/dev.mjs`、根 `index.html` 和 `eip-*/index.html` 维护。
-- 私钥相关文案必须明确提示“仅测试账户”，不要弱化警示。
-- 两个 demo 的用户可见文案默认中文；协议名、RPC 名、方法名可保留英文。
-- Demo 间导航必须同时考虑本地壳页和 GitHub Pages 子路径部署，不要默认绝对路径 `/` 一定正确。
-
-## 常用命令
+## Commands
 
 ```sh
 pnpm install
@@ -24,15 +15,24 @@ pnpm lint
 pnpm build
 ```
 
-`pnpm dev` 会启动：
+`pnpm dev` 固定启动：
 
-- `http://127.0.0.1:4173/`
-- `http://127.0.0.1:4173/eip-4337/`
-- `http://127.0.0.1:4173/eip-7702/`
+- root shell: `http://127.0.0.1:4173/`
+- 4337 app: `http://127.0.0.1:5173/`
+- 7702 app: `http://127.0.0.1:3008/`
 
-## 当前状态速记
+## Current State
 
-- 4337 demo：钱包、运行配置、诊断、ABI 驱动的合约写方法调用、execute/executeBatch、CFX 转账、批量 UserOps、引导弹窗已完成。
-- 4337 调用构造器默认使用 FooDapp 地址和内置 ABI；其他合约通过 ConfluxScan ABI 查询，查询结果按地址缓存到 localStorage，未缓存地址必须先查询 ABI 才能构造合约调用。
-- 7702 demo：网络切换、授权列表、nonce 查询、委托交易发送、结果展示已完成。
-- 两个 demo 顶部已加“返回首页”入口，但 Pages 子路径可用性仍需确认。
+- 4337 demo has a compact topbar wallet control, multi-wallet connect modal, full connected address display, chain status, and switch-to-Conflux eSpace Testnet action.
+- 4337 side panels now start with runtime config; wallet no longer occupies a large sidebar card.
+- 4337 operation builder is ABI-driven, defaults to FooDapp + built-in ABI, and caches queried ConfluxScan ABIs in `localStorage` under `eco-demo:eip-4337-abi-cache`.
+- 7702 demo has network selector, authorization list, nonce query, delegated transaction sender, and result panel.
+- Demo home links are path-aware for local dev and GitHub Pages subpaths; they should not be changed back to absolute `/`.
+
+## Guardrails
+
+- Do not edit generated `dist/`, `apps/*/dist/`, or `node_modules/`.
+- Do not casually change app ports or route assembly in `scripts/dev.mjs` / `scripts/build-pages.mjs`.
+- Keep private-key warning copy and red warning styling visibly strong.
+- User-facing copy defaults to Chinese; protocol names, RPC names, method names may stay English.
+- Run `pnpm lint` and `pnpm build` before handoff or commit unless blocked.

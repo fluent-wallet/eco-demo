@@ -5,51 +5,60 @@
 The repo has two layers:
 
 - Source apps under `apps/*`
-- A root shell/build layer that unifies local preview and production publishing
+- Root shell/build layer for unified local preview and production publishing
 
 ## Runtime Model
 
 ### Local Dev
 
-- `scripts/dev.mjs` starts three Vite processes
-- root shell on `127.0.0.1:4173`
-- 4337 app on `127.0.0.1:5173`
-- 7702 app on `127.0.0.1:3008`
-- root `index.html` and `eip-*/index.html` embed app dev servers for one-entry preview
+- `scripts/dev.mjs` starts three Vite processes.
+- Root shell runs on `127.0.0.1:4173`.
+- 4337 app runs on `127.0.0.1:5173`.
+- 7702 app runs on `127.0.0.1:3008`.
+- Root `index.html` and `eip-*/index.html` embed app dev servers for one-entry preview.
 
 ### Production Build
 
-- `scripts/build-pages.mjs` is the production route source of truth
-- each app builds its own `dist/`
-- root build script copies app outputs into root `dist/eip-4337` and `dist/eip-7702`
-- root build script also generates the production homepage `dist/index.html`
+- `scripts/build-pages.mjs` is the production route source of truth.
+- Each app builds its own `dist/`.
+- Root build script copies outputs into root `dist/eip-4337` and `dist/eip-7702`.
+- Root build script generates production homepage `dist/index.html`.
+- App card links are relative (`./eip-4337/`, `./eip-7702/`) for GitHub Pages subpaths.
 
 ## App Boundaries
 
 ### `apps/eip-4337-demo`
 
-- owns 4337 wallet/account abstraction flows
-- critical logic lives in `src/lib/accountAbstraction.ts`
-- contract and endpoint defaults live under `src/constants` and `src/config`
-- contract ABI lookup and ABI parameter encoding live in `src/lib/contractCalls.ts`
-- the operation panel builds generic calls as `{ to, data, value }[]`; `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`
-- FooDapp remains the default sample via built-in ABI, but the UI is ABI-driven and can query other verified contracts from ConfluxScan
-- ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config or source of truth
+- Owns 4337 wallet/account abstraction flows.
+- Critical AA logic lives in `src/lib/accountAbstraction.ts`.
+- Contract and endpoint defaults live under `src/constants` and `src/config`.
+- Contract ABI lookup and ABI parameter encoding live in `src/lib/contractCalls.ts`.
+- Wallet UX is topbar-scoped:
+  - `WalletControl` opens a connect modal using configured wagmi connectors.
+  - Connected state shows connector name, full address, and chain status.
+  - Wrong-chain state offers `switchChain({ chainId: 71 })`.
+- Operation panel builds generic calls as `{ to, data, value }[]`.
+- `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`.
+- FooDapp remains the default sample via built-in ABI.
+- Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
+- ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
 
 ### `apps/eip-7702-demo`
 
-- owns 7702 authorization and delegated transaction flows
-- chain and RPC defaults live in `src/constants.ts`
+- Owns 7702 authorization and delegated transaction flows.
+- Chain and RPC defaults live in `src/constants.ts`.
 
 ## Navigation
 
-- Home page selection happens at root `/`
-- each demo now includes a top-left home link
-- navigation changes must work in both local shell and GitHub Pages deployment; absolute `/` should be treated as a deployment-sensitive choice
+- Home page selection happens at the root shell/home page.
+- Each demo has a top-left `返回首页` link.
+- Demo home links must work in both local shell and GitHub Pages subpath deployment.
+- Do not replace path-aware home link logic with absolute `/`.
 
 ## Change Rules
 
-- Do not edit generated `dist/`
-- Do not change app ports or Pages route mapping in isolation
-- When adding a demo, update both local shell routing and production build routing together
-- Keep 4337 smart account signing/sending changes separated from UI call-builder changes unless the UserOperation contract changes require both
+- Do not edit generated `dist/`.
+- Do not change app ports or Pages route mapping in isolation.
+- When adding a demo, update both local shell routing and production build routing together.
+- Keep 4337 smart account signing/sending changes separated from UI call-builder changes unless the UserOperation contract changes require both.
+- Keep private-key warnings visually strong and explicit.
