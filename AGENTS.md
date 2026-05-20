@@ -33,7 +33,9 @@ Before changing code, read:
 
 - Root shell and Pages build are wired.
 - EIP-4337 demo includes topbar wallet control, multi-wallet connect modal, full address display, chain status/switching, runtime config, contracts, diagnostics, guide modal, ABI-driven write calls, CFX transfers, prepare/send UserOperation, executeBatch call lists, and bulk UserOps.
-- EIP-4337 defaults to FooDapp address + built-in ABI. Other verified contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`; uncached addresses must query ABI before contract method calls are enabled.
+- EIP-4337 ABI builder defaults to FooDapp address + built-in ABI. Other verified contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`; uncached addresses must query ABI before contract method calls are enabled.
+- ABI input parsing now validates JSON arrays, tuples, tuple fields, addresses, booleans, signed/unsigned integers, bytes/fixed bytes, payable CFX value, and transfer amounts with user-facing Chinese errors.
+- Single `execute` and batch `executeBatch` share the same call-building path; batch mode sends only calls explicitly added to the list, while single CFX transfer bypasses ABI.
 - EIP-7702 demo includes network selector, authorization list editor, nonce query, delegated transaction sender, and result panel.
 - Both demos expose top-left `返回首页` links that work in local dev and GitHub Pages subpath deployments.
 - Production homepage labels the first app as `EIP-4337 Demo`.
@@ -65,4 +67,5 @@ Use `pnpm dev` for visual QA. Run `pnpm lint` and `pnpm build` before handoff or
 
 - 4337 guide modal wording and first-open behavior are still product decisions, not final design.
 - 4337 ABI cache has no visible cache management yet.
-- ABI-driven call builder still needs broader contract-shape validation.
+- ABI-driven call builder has no dedicated encode fixtures/tests yet; add coverage before broadening ABI shape support further.
+- Broader contract-shape validation is still useful for nested tuples/arrays, overloaded methods from real contracts, and unverified ConfluxScan responses.

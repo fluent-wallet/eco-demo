@@ -1,6 +1,7 @@
 import {
   encodeFunctionData,
   isAddress,
+  isHex,
   type Abi,
   type AbiFunction,
   type AbiParameter,
@@ -18,6 +19,10 @@ type ConfluxScanAbiResponse = {
 
 export type WritableAbiFunction = AbiFunction & {
   stateMutability: 'nonpayable' | 'payable'
+}
+
+type TupleAbiParameter = AbiParameter & {
+  components: readonly AbiParameter[]
 }
 
 export const FOO_DAPP_ABI = [
@@ -68,7 +73,13 @@ export async function fetchContractAbi(address: Address): Promise<Abi> {
     throw new Error('ConfluxScan 返回的 ABI 格式不可用。')
   }
 
-  const parsed = JSON.parse(payload.result) as unknown
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(payload.result) as unknown
+  } catch {
+    throw new Error('ConfluxScan 返回的 ABI 不是有效 JSON。')
+  }
+
   if (!Array.isArray(parsed)) {
     throw new Error('ABI 不是有效的 JSON 数组。')
   }
@@ -101,37 +112,55 @@ export function encodeWritableFunctionCall(
   fn: WritableAbiFunction,
   values: string[],
 ): Hex {
-  return encodeFunctionData({
-    abi: [fn],
-    functionName: fn.name,
-    args: fn.inputs.map((input, index) => parseAbiValue(input, values[index])),
-  } as never)
+  const args = fn.inputs.map((input, index) =>
+    parseAbiValue(input, values[index]),
+  )
+
+  try {
+    return encodeFunctionData({
+      abi: [fn],
+      functionName: fn.name,
+      args,
+    } as never)
+  } catch (caught) {
+    const message =
+      caught instanceof Error ? caught.message : '未知编码错误。'
+    throw new Error(`ABI 参数编码失败：${message}`)
+  }
 }
 
-function parseAbiValue(input: AbiParameter, rawValue: string | undefined): unknown {
-  const value = rawValue?.trim() ?? ''
+function parseAbiValue(
+  input: AbiParameter,
+  rawValue: unknown,
+  path = getInputLabel(input),
+): unknown {
   const arrayType = parseArrayType(input.type)
   if (arrayType) {
-    const items = parseArrayInput(value)
+    const value = getStringInput(rawValue)
+    const items = parseArrayInput(value, path)
     if (arrayType.length !== null && items.length !== arrayType.length) {
       throw new Error(
-        `${getInputLabel(input)} 需要 ${arrayType.length} 个元素，当前为 ${items.length} 个。`,
+        `${path} 需要 ${arrayType.length} 个元素，当前为 ${items.length} 个。`,
       )
     }
 
-    return items.map((item) =>
-      parseAbiValue({ ...input, type: arrayType.itemType }, item),
+    return items.map((item, index) =>
+      parseAbiValue(
+        { ...input, type: arrayType.itemType },
+        item,
+        `${path}[${index}]`,
+      ),
     )
   }
 
-  if (input.type === 'tuple' || input.type.startsWith('tuple[')) {
-    if (!value) throw new Error(`${getInputLabel(input)} 需要填写 JSON 值。`)
-    return JSON.parse(value) as unknown
+  if (input.type === 'tuple') {
+    return parseTupleInput(asTupleInput(input), rawValue, path)
   }
 
+  const value = getStringInput(rawValue)
   if (input.type === 'address') {
     if (!isAddress(value)) {
-      throw new Error(`${getInputLabel(input)} 需要是有效地址。`)
+      throw new Error(`${path} 需要是有效地址。`)
     }
     return value
   }
@@ -139,12 +168,23 @@ function parseAbiValue(input: AbiParameter, rawValue: string | undefined): unkno
   if (input.type === 'bool') {
     if (value === 'true') return true
     if (value === 'false') return false
-    throw new Error(`${getInputLabel(input)} 需要填写 true 或 false。`)
+    throw new Error(`${path} 需要填写 true 或 false。`)
   }
 
   if (input.type.startsWith('uint') || input.type.startsWith('int')) {
-    if (!value) throw new Error(`${getInputLabel(input)} 不能为空。`)
-    return BigInt(value)
+    if (!value) throw new Error(`${path} 不能为空。`)
+    try {
+      const parsed = BigInt(value)
+      if (input.type.startsWith('uint') && parsed < 0n) {
+        throw new Error(`${path} 不能为负数。`)
+      }
+      return parsed
+    } catch {
+      if (input.type.startsWith('uint') && value.startsWith('-')) {
+        throw new Error(`${path} 不能为负数。`)
+      }
+      throw new Error(`${path} 需要是整数。`)
+    }
   }
 
   if (input.type === 'string') {
@@ -153,29 +193,130 @@ function parseAbiValue(input: AbiParameter, rawValue: string | undefined): unkno
 
   if (input.type === 'bytes' || /^bytes\d+$/.test(input.type)) {
     if (!value) return '0x'
-    return (value.startsWith('0x') ? value : `0x${value}`) as Hex
+    const hex = (value.startsWith('0x') ? value : `0x${value}`) as Hex
+    if (!isHex(hex)) {
+      throw new Error(`${path} 需要是十六进制 bytes。`)
+    }
+    const fixedBytes = input.type.match(/^bytes(\d+)$/)
+    if (fixedBytes) {
+      const expectedBytes = Number.parseInt(fixedBytes[1], 10)
+      const actualBytes = (hex.length - 2) / 2
+      if (actualBytes !== expectedBytes) {
+        throw new Error(
+          `${path} 需要 ${expectedBytes} 字节，当前为 ${actualBytes} 字节。`,
+        )
+      }
+    }
+    return hex
   }
 
-  if (!value) throw new Error(`${getInputLabel(input)} 不能为空。`)
+  if (!value) throw new Error(`${path} 不能为空。`)
   return value
 }
 
-function parseArrayInput(value: string) {
+function parseTupleInput(
+  input: TupleAbiParameter,
+  rawValue: unknown,
+  path: string,
+) {
+  const parsed =
+    typeof rawValue === 'string'
+      ? parseJsonInput(rawValue, path, 'tuple')
+      : rawValue
+
+  if (input.components.length === 0) {
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error(`${path} 需要填写 JSON 对象。`)
+    }
+    return parsed
+  }
+
+  if (Array.isArray(parsed)) {
+    if (parsed.length !== input.components.length) {
+      throw new Error(
+        `${path} 需要 ${input.components.length} 个 tuple 字段，当前为 ${parsed.length} 个。`,
+      )
+    }
+
+    return input.components.map((component, index) =>
+      parseAbiValue(component, parsed[index], `${path}.${component.name || index}`),
+    )
+  }
+
+  if (parsed === null || typeof parsed !== 'object') {
+    throw new Error(`${path} 需要填写 JSON 对象或数组。`)
+  }
+
+  const record = parsed as Record<string, unknown>
+  return input.components.map((component, index) => {
+    const key = component.name
+    if (key && Object.hasOwn(record, key)) {
+      return parseAbiValue(component, record[key], `${path}.${key}`)
+    }
+
+    if (Object.hasOwn(record, String(index))) {
+      return parseAbiValue(
+        component,
+        record[String(index)],
+        `${path}.${key || index}`,
+      )
+    }
+
+    throw new Error(`${path} 缺少 tuple 字段 ${key || index}。`)
+  })
+}
+
+function asTupleInput(input: AbiParameter): TupleAbiParameter {
+  const maybeTuple = input as AbiParameter & {
+    components?: readonly AbiParameter[]
+  }
+  return {
+    ...input,
+    components: maybeTuple.components ?? [],
+  }
+}
+
+function parseArrayInput(value: string, path: string) {
   if (!value) return []
   if (value.startsWith('[')) {
-    const parsed = JSON.parse(value) as unknown
+    const parsed = parseJsonInput(value, path, 'array')
     if (!Array.isArray(parsed)) {
-      throw new Error('数组参数需要填写 JSON 数组。')
+      throw new Error(`${path} 需要填写 JSON 数组。`)
     }
-    return parsed.map((item) =>
-      typeof item === 'string' ? item : JSON.stringify(item),
-    )
+    return parsed
   }
 
   return value
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+function parseJsonInput(value: string, path: string, kind: 'array' | 'tuple') {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    throw new Error(`${path} 需要填写 JSON ${kind === 'array' ? '数组' : '值'}。`)
+  }
+
+  try {
+    return JSON.parse(trimmed) as unknown
+  } catch {
+    throw new Error(`${path} 不是有效 JSON。`)
+  }
+}
+
+function getStringInput(rawValue: unknown) {
+  if (rawValue === undefined || rawValue === null) return ''
+  if (typeof rawValue === 'string') return rawValue.trim()
+  if (typeof rawValue === 'number' || typeof rawValue === 'bigint') {
+    return rawValue.toString()
+  }
+  if (typeof rawValue === 'boolean') return rawValue ? 'true' : 'false'
+  return JSON.stringify(rawValue)
 }
 
 function parseArrayType(type: string) {
