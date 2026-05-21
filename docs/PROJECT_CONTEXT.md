@@ -41,7 +41,7 @@ eco-demo/
   - full connected address display
   - chain status and switch-to-Conflux eSpace Testnet action
   - runtime config, contracts, diagnostics, guide modal
-  - ABI-driven write-call builder
+  - ABI-driven write-call builder with ABI fetch/cache, method selection, argument parsing, payable values, and Chinese validation errors
   - prepare/send UserOperation
   - executeBatch call list
   - CFX transfer calls
@@ -62,7 +62,8 @@ eco-demo/
 
 - Confirm 4337 guide modal copy, first-open behavior, and whether a visible reset entry is needed.
 - Decide whether 4337 ABI cache needs visible cache management, such as clear cache or cached-contract selector.
-- Validate 4337 ABI-driven call builder against arrays, tuples, payable methods, overloaded methods, and unverified contracts.
+- Add focused encode fixtures/tests for `apps/eip-4337-demo/src/lib/contractCalls.ts`; current validation is compile/browser checked but not covered by automated unit tests.
+- Validate 4337 ABI-driven call builder against more real-world contract shapes: nested tuples/arrays, overloaded methods from verified contracts, and unverified/malformed ConfluxScan responses.
 - Decide root README language policy: Chinese, English, or bilingual.
 - Add Pages smoke checks after `pnpm build` if deployment regressions become common.
 
@@ -80,7 +81,9 @@ eco-demo/
 - 4337 defaults to FooDapp address and built-in FooDapp ABI.
 - Other contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`.
 - 4337 contract method calls require a cached ABI; uncached addresses must run ABI query first.
-- CFX transfer calls do not require ABI.
+- ABI call arguments are parsed before UserOperation wallet/private-key prerequisites so users see builder errors first.
+- Batch mode sends only calls explicitly added to the executeBatch list; changing the form after adding a call does not mutate existing list entries.
+- CFX transfer calls do not require ABI and should not display stale ABI-cache warnings in single transfer mode.
 - Private-key flows are test/debug only and must remain visibly warned.
 
 ## Commands

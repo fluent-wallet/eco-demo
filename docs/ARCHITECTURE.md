@@ -33,11 +33,14 @@ The repo has two layers:
 - Critical AA logic lives in `src/lib/accountAbstraction.ts`.
 - Contract and endpoint defaults live under `src/constants` and `src/config`.
 - Contract ABI lookup and ABI parameter encoding live in `src/lib/contractCalls.ts`.
+- `contractCalls.ts` is responsible for turning form strings/JSON into viem args. It validates arrays, fixed arrays, tuples with named or indexed fields, addresses, booleans, signed/unsigned integers, bytes/fixed bytes, and wraps encode failures with user-facing errors.
 - Wallet UX is topbar-scoped:
   - `WalletControl` opens a connect modal using configured wagmi connectors.
   - Connected state shows connector name, full address, and chain status.
   - Wrong-chain state offers `switchChain({ chainId: 71 })`.
 - Operation panel builds generic calls as `{ to, data, value }[]`.
+- Single mode uses the current ABI call, unless "single CFX transfer" is enabled.
+- Batch mode uses the explicit call list; "add current call" snapshots the current ABI form, and "add CFX transfer" snapshots transfer fields.
 - `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`.
 - FooDapp remains the default sample via built-in ABI.
 - Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
@@ -61,4 +64,5 @@ The repo has two layers:
 - Do not change app ports or Pages route mapping in isolation.
 - When adding a demo, update both local shell routing and production build routing together.
 - Keep 4337 smart account signing/sending changes separated from UI call-builder changes unless the UserOperation contract changes require both.
+- Keep ABI parsing behavior in `contractCalls.ts`; avoid duplicating per-field parsing inside React components.
 - Keep private-key warnings visually strong and explicit.

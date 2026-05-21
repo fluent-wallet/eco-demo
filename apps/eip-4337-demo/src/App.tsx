@@ -124,6 +124,34 @@ function compact(value: string | undefined) {
   return `${value.slice(0, 6)}...${value.slice(-4)}`
 }
 
+function getErrorMessage(caught: unknown, fallback: string) {
+  return caught instanceof Error ? caught.message : fallback
+}
+
+function parseCfxAmount(
+  value: string,
+  label: string,
+  options?: { allowZero?: boolean },
+) {
+  const normalized = value.trim() || '0'
+
+  try {
+    const parsed = parseEther(normalized)
+    if (parsed < 0n) {
+      throw new Error(`${label} 不能为负数。`)
+    }
+    if (!options?.allowZero && parsed <= 0n) {
+      throw new Error(`${label} 需要大于 0。`)
+    }
+    return parsed
+  } catch (caught) {
+    if (caught instanceof Error && caught.message.endsWith('。')) {
+      throw caught
+    }
+    throw new Error(`${label} 需要填写有效的 CFX 数量。`)
+  }
+}
+
 function StatusPill({ state }: { state: AsyncState }) {
   const label = {
     idle: '待操作',
@@ -243,9 +271,10 @@ function GuideContent() {
           <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔 aa 交易的发起人是智能账户还是钱包账户自身。</li>
           <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
           <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas，需要提前转入。</li>
-          <li>在右侧选择 execute 或 executeBatch，点击“准备 UserOperation”查看请求内容。</li>
-          <li>确认请求无误后点击“发送 UserOperation”，等待 Bundler 返回 UserOp 哈希和链上交易结果。</li>
-          <li>可以更改目标合约地址自定义操作内容，比如在一个userOp中包含多个合约的多个调用。</li>
+          <li>在右侧用 ABI 选择写方法并填写参数；未缓存的合约地址需要先点击“查询 ABI”。</li>
+          <li>单笔模式会直接使用当前调用；批量模式需要先把当前调用或 CFX 转账加入调用列表。</li>
+          <li>点击“准备 UserOperation”查看请求内容，确认无误后点击“发送 UserOperation”。</li>
+          <li>可以更改目标合约地址自定义操作内容，比如在一个 UserOp 中包含多个合约的多个调用。</li>
         </ol>
       </section>
       <section>
@@ -257,7 +286,7 @@ function GuideContent() {
           <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
           <li>如果钱包还没有授权给其他智能账户，尝试 7702 流程时需要先去 7702 demo 进行授权；或者 Owner 签名方式使用私钥，会在 aa 交易里带上授权信息同时完成授权和 UserOp 执行。</li>
           <li>“准备 UserOperation”只构造和签名请求，不会上链；“发送 UserOperation”才会提交到 Bundler。</li>
-          <li>批量执行是 batchExecute，是指一个 UserOp 里包含多个合约调用（比如 approve + transfer）。</li>
+          <li>批量执行是 executeBatch，是指一个 UserOp 里包含多个合约调用（比如 approve + transfer）。</li>
           <li>批量发送 UserOps 是根据填入的批量数量把 UserOp 重复发送 n 次，以达到一个 bundle tx 内包含多个 aa tx 的目的（实际打包规则由 Bundler RPC 实现，不能保证一定会多个交易打包在一个 bundle）。</li>
           <li>如果希望测试 bundle tx 上链后内部 aa 交易失败的情况，可以用一个只有 1 CFX 的账户私钥批量发 UserOps，并包含 0.9 CFX 转账给其他账户，这样重复发送时只会有一笔成功，其余会失败。</li>
         </ul>
@@ -561,6 +590,8 @@ function OperationPanel({
     (item, index) =>
       getFunctionKey(item, index) === selectedAdvancedFunctionKey,
   )
+  const showAbiError =
+    abiError && !(operationMode === 'single' && advancedTransferEnabled)
 
   return (
     <section className="workbench">
@@ -572,7 +603,7 @@ function OperationPanel({
               使用说明
             </button>
           </div>
-          <p>EntryPoint v0.8，支持 SimpleAccount 或 7702 账户，可使用 Paymaster 赞助。</p>
+          <p>EntryPoint v0.8，当前调用由 ABI 编码，可切换单笔 execute 或批量 executeBatch。</p>
         </div>
         <StatusPill state={status} />
       </div>
@@ -591,7 +622,7 @@ function OperationPanel({
           </select>
         </label>
         <label className="field wide-field">
-          <span>目标合约地址</span>
+          <span>目标合约地址（ABI）</span>
           <div className="inline-field">
             <input
               value={advancedContractAddress}
@@ -644,9 +675,9 @@ function OperationPanel({
                   }
                   placeholder={
                     input.type.endsWith('[]')
-                      ? 'JSON 数组或逗号分隔'
+                      ? 'JSON 数组；简单值也可用逗号分隔'
                       : input.type.startsWith('tuple')
-                        ? 'JSON'
+                        ? 'JSON 对象或数组'
                         : input.type
                   }
                 />
@@ -675,7 +706,7 @@ function OperationPanel({
                   setAdvancedTransferEnabled(event.target.checked)
                 }
               />
-              <span>本次仅执行 CFX 转账</span>
+              <span>本次单笔仅执行 CFX 转账</span>
             </label>
           )}
           {(operationMode === 'batch' || advancedTransferEnabled) && (
@@ -706,7 +737,7 @@ function OperationPanel({
         </div>
         {operationMode === 'batch' && (
           <div className="field wide-field">
-            <span>批量调用</span>
+            <span>批量调用列表</span>
             <div className="advanced-batch-actions">
               <button
                 className="button secondary"
@@ -745,7 +776,7 @@ function OperationPanel({
             )}
           </div>
         )}
-        {abiError && <div className="alert wide-field">{abiError}</div>}
+        {showAbiError && <div className="alert wide-field">{abiError}</div>}
       </div>
 
       <div className="action-row">
@@ -940,7 +971,7 @@ function App() {
       setAdvancedArgs([])
       setAdvancedValue('')
       setAbiStatus('idle')
-      setAbiError('该合约地址还没有 ABI 缓存，请先点击“查询 ABI”。')
+      setAbiError('该合约地址还没有 ABI 缓存，请先点击“查询 ABI”。CFX 转账不需要 ABI。')
       return
     }
 
@@ -1025,7 +1056,7 @@ function App() {
       setAdvancedValue('')
       setAbiStatus('success')
     } catch (caught) {
-      setAbiError(caught instanceof Error ? caught.message : 'ABI 查询失败。')
+      setAbiError(getErrorMessage(caught, 'ABI 查询失败。'))
       setAbiStatus('error')
     }
   }
@@ -1035,7 +1066,7 @@ function App() {
       throw new Error('请填写有效的目标合约地址。')
     }
     if (!abiCache[getAddressCacheKey(advancedContractAddress)]) {
-      throw new Error('该合约地址还没有 ABI 缓存，请先点击“查询 ABI”。')
+      throw new Error('该合约地址还没有 ABI 缓存，请先点击“查询 ABI”。CFX 转账不需要 ABI。')
     }
 
     const selectedFunction = advancedFunctions.find(
@@ -1048,11 +1079,8 @@ function App() {
 
     const value =
       selectedFunction.stateMutability === 'payable'
-        ? parseEther(advancedValue || '0')
+        ? parseCfxAmount(advancedValue, '调用附带 CFX', { allowZero: true })
         : 0n
-    if (value < 0n) {
-      throw new Error('调用附带 CFX 不能为负数。')
-    }
 
     return {
       to: advancedContractAddress,
@@ -1066,10 +1094,7 @@ function App() {
       throw new Error('请填写有效的 CFX 转账接收地址。')
     }
 
-    const value = parseEther(advancedTransferAmount || '0')
-    if (value <= 0n) {
-      throw new Error('请填写大于 0 的 CFX 转账数量。')
-    }
+    const value = parseCfxAmount(advancedTransferAmount, 'CFX 转账数量')
 
     return {
       to: advancedTransferTo,
@@ -1100,7 +1125,7 @@ function App() {
         },
       ])
     } catch (caught) {
-      setAbiError(caught instanceof Error ? caught.message : '添加调用失败。')
+      setAbiError(getErrorMessage(caught, '添加调用失败。'))
     }
   }
 
@@ -1118,7 +1143,7 @@ function App() {
         },
       ])
     } catch (caught) {
-      setAbiError(caught instanceof Error ? caught.message : '添加转账失败。')
+      setAbiError(getErrorMessage(caught, '添加转账失败。'))
     }
   }
 
@@ -1150,6 +1175,7 @@ function App() {
     if (!canUseConfig) {
       throw new Error('请填写有效的 Bundler URL、EntryPoint 和 Paymaster。')
     }
+    const calls = buildCalls()
     if (ownerMode === 'wallet' && !walletClient) {
       throw new Error('请先连接钱包。')
     }
@@ -1167,11 +1193,14 @@ function App() {
         ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
         : undefined,
       ownerPrivateKey: getOwnerPrivateKey(),
-      calls: buildCalls(),
+      calls,
     }
   }
 
-  const buildPrivateKeyParams = async (privateKey: Hex) => ({
+  const buildPrivateKeyParams = async (
+    privateKey: Hex,
+    calls = buildCalls(),
+  ) => ({
     walletClient: undefined,
     accountMode,
     ownerMode: 'privateKey' as const,
@@ -1181,10 +1210,10 @@ function App() {
       ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
       : undefined,
     ownerPrivateKey: privateKey,
-    calls: buildCalls(),
+    calls,
   })
 
-  const buildWalletParams = async () => {
+  const buildWalletParams = async (calls = buildCalls()) => {
     if (!walletClient) {
       throw new Error('批量发送前请先连接钱包 A。')
     }
@@ -1199,7 +1228,7 @@ function App() {
         ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
         : undefined,
       ownerPrivateKey: undefined,
-      calls: buildCalls(),
+      calls,
     }
   }
 
@@ -1224,8 +1253,7 @@ function App() {
       setStatus('success')
     } catch (caught) {
       const explanation = explainUserOperationError(caught)
-      const message =
-        caught instanceof Error ? caught.message : '未知 UserOperation 错误。'
+      const message = getErrorMessage(caught, '未知 UserOperation 错误。')
       setError(explanation ? `${explanation}\n\n${message}` : message)
       setStatus('error')
     }
@@ -1242,6 +1270,7 @@ function App() {
       if (!canUseConfig) {
         throw new Error('请填写有效的 Bundler URL、EntryPoint 和 Paymaster。')
       }
+      const calls = buildCalls()
       if (!walletClient) {
         throw new Error('批量发送前请先连接钱包 A。')
       }
@@ -1258,8 +1287,8 @@ function App() {
         ? bulkOwnerPrivateKey
         : `0x${bulkOwnerPrivateKey}`) as Hex
 
-      const walletParams = await buildWalletParams()
-      const privateKeyParams = await buildPrivateKeyParams(bulkPrivateKey)
+      const walletParams = await buildWalletParams(calls)
+      const privateKeyParams = await buildPrivateKeyParams(bulkPrivateKey, calls)
       const baseNonceKey = Date.now()
       const settled = await Promise.allSettled(
         [
@@ -1334,8 +1363,7 @@ function App() {
       }
     } catch (caught) {
       const explanation = explainUserOperationError(caught)
-      const message =
-        caught instanceof Error ? caught.message : '未知 UserOperation 错误。'
+      const message = getErrorMessage(caught, '未知 UserOperation 错误。')
       setError(explanation ? `${explanation}\n\n${message}` : message)
       setStatus('error')
     }
