@@ -64,12 +64,24 @@ export const walletClient = createWalletClient({
   transport: http(),
 });
 
+function getInjectedProvider(provider: any, name: string) {
+  return (
+    provider ?? {
+      request: async () => {
+        throw new Error(`未检测到 ${name} 钱包。`);
+      },
+    }
+  );
+}
+
 export const fluentTestClient = createWalletClient({
   chain: chain,
-  transport: custom((window as any).fluent!),
+  transport: custom(getInjectedProvider((globalThis as any).fluent, "Fluent")),
 });
 
 export const metamaskTestClient = createWalletClient({
   chain: chain,
-  transport: custom((window as any).ethereum!),
+  transport: custom(
+    getInjectedProvider((globalThis as any).ethereum, "MetaMask"),
+  ),
 });

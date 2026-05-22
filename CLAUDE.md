@@ -13,6 +13,10 @@ pnpm install
 pnpm dev
 pnpm lint
 pnpm build
+pnpm --filter @eco-demo/eip-4337-demo test:contract-calls
+pnpm --filter @eco-demo/eip-4337-demo test:conflux-scan-abi
+pnpm --filter @eco-demo/eip-4337-demo test:nonce-key
+pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 ```
 
 `pnpm dev` 固定启动：
@@ -27,8 +31,9 @@ pnpm build
 - 4337 side panels now start with runtime config; wallet no longer occupies a large sidebar card.
 - 4337 operation builder is ABI-driven, defaults to FooDapp + built-in ABI, and caches queried ConfluxScan ABIs in `localStorage` under `eco-demo:eip-4337-abi-cache`.
 - 4337 ABI call inputs validate arrays, tuples, tuple fields, addresses, booleans, integers, bytes/fixed bytes, payable value, and CFX transfers. Single and batch modes both build `{ to, data, value }[]`; batch mode only uses calls added to the list.
-- 4337 runtime config exposes `Nonce key`, default `0`. Both SimpleAccount and Simple7702 call `EntryPoint.getNonce(sender, key)` with this value. Bulk UserOps keep the same key and add per-item nonce offsets to avoid conflicts.
-- 7702 demo has network selector, authorization list, nonce query, delegated transaction sender, and result panel.
+- 4337 runtime config exposes `Nonce key`, default `0`. Parsing lives in `src/lib/nonceKey.ts`. Both SimpleAccount and Simple7702 call `EntryPoint.getNonce(sender, key)` with this value. Bulk UserOps keep the same key and apply per-item offsets through `src/lib/userOperationNonce.ts`.
+- 4337 has Node fixture scripts under `apps/eip-4337-demo/scripts/` for ABI call encoding, ConfluxScan ABI response parsing, nonce key parsing, and UserOperation nonce offsets. They use Node 22 `--experimental-strip-types` and do not require a test framework.
+- 7702 demo has network selector, authorization list, nonce query, delegated transaction sender, and result panel. Its injected Fluent/MetaMask helper clients must not crash module load when wallet providers are absent.
 - Demo home links are path-aware for local dev and GitHub Pages subpaths; they should not be changed back to absolute `/`.
 
 ## Guardrails

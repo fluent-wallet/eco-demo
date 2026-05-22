@@ -3,15 +3,12 @@
 ## Next
 
 - Confirm 4337 guide modal copy, first-open behavior, and whether a visible reset entry is needed.
-- Decide whether 4337 ABI cache needs visible cache management, such as clear cache or cached-contract selector.
-- Add focused encode tests or fixtures for `apps/eip-4337-demo/src/lib/contractCalls.ts`.
-- Validate ABI-driven call builder with real verified contracts that include nested tuples/arrays and overloaded methods.
-- Check ConfluxScan edge cases: unverified contracts, malformed ABI payloads, and contracts with no writable methods.
-- Add focused coverage or fixtures for UserOperation nonce key parsing and bulk nonce offset behavior.
+- Validate ABI-driven call builder manually or with fixtures against real verified ConfluxScan contracts that include nested tuples/arrays and overloaded methods.
 - Decide root README language policy: Chinese, English, or bilingual.
 
 ## Engineering
 
+- Consider a root-level test script that runs all current 4337 fixture scripts together.
 - Add post-build smoke checks for `/`, `/eip-4337/`, `/eip-7702/`.
 - If more demos are added, extract shared header/panel/button primitives instead of repeating styles per app.
 - Revisit 4337 bundle size only if the warning starts affecting local iteration or Pages load time.

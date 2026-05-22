@@ -34,6 +34,7 @@ import {
   sendDemoUserOperation,
   stringifyUserOperation,
 } from './lib/accountAbstraction'
+import { parseNonceKey } from './lib/nonceKey'
 import type {
   AccountMode,
   OwnerMode,
@@ -127,20 +128,6 @@ function compact(value: string | undefined) {
 
 function getErrorMessage(caught: unknown, fallback: string) {
   return caught instanceof Error ? caught.message : fallback
-}
-
-function parseNonceKey(value: string) {
-  const normalized = value.trim() || '0'
-  if (!/^\d+$/.test(normalized)) {
-    throw new Error('Nonce key 需要填写非负整数。')
-  }
-
-  const parsed = BigInt(normalized)
-  if (parsed >= 2n ** 192n) {
-    throw new Error('Nonce key 必须小于 2^192。')
-  }
-
-  return parsed
 }
 
 function parseCfxAmount(

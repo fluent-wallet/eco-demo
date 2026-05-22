@@ -61,6 +61,12 @@ export async function fetchContractAbi(address: Address): Promise<Abi> {
   }
 
   const payload = (await response.json()) as ConfluxScanAbiResponse
+  return parseConfluxScanAbiResponse(payload)
+}
+
+export function parseConfluxScanAbiResponse(
+  payload: ConfluxScanAbiResponse,
+): Abi {
   if (payload.status && payload.status !== '1') {
     throw new Error(
       typeof payload.result === 'string'
