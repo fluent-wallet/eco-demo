@@ -8,7 +8,6 @@ import {
   http,
   isAddressEqual,
   isAddress,
-  createNonceManager,
   type Address,
   type Chain,
   type EIP1193Provider,
@@ -174,14 +173,17 @@ const SIMPLE_ACCOUNT_FACTORY_ABI = [
   },
 ] as const
 
+const DEFAULT_USER_OPERATION_NONCE_KEY = 0n
+
 export type FooCallPreset = 'deposit' | 'transfer' | 'withdraw' | 'custom'
 
 export type DemoConfig = {
   accountMode: AccountMode
   bundlerUrl: string
   entryPointAddress: Address
+  nonceKey?: bigint
+  nonceOffset?: number
   paymasterAddress?: Address
-  nonceKey?: number
   ownerMode: OwnerMode
   ownerPrivateKey?: Hex
   rpcUrl?: string
@@ -398,7 +400,8 @@ async function createClients({
   walletClient,
   bundlerUrl,
   entryPointAddress,
-  nonceKey,
+  nonceKey = DEFAULT_USER_OPERATION_NONCE_KEY,
+  nonceOffset = 0,
   ownerMode,
   ownerPrivateKey,
   rpcUrl,
@@ -436,14 +439,8 @@ async function createClients({
     address: entryPointAddress,
     version: '0.8' as const,
   }
-  const nonceKeyManager = createNonceManager({
-    source: {
-      get() {
-        return nonceKey ?? Date.now()
-      },
-      set() {},
-    },
-  })
+  const userOperationNonceKey = nonceKey
+  const userOperationNonceOffset = BigInt(nonceOffset)
 
   const simpleAccountAddressPromise =
     accountMode === 'simpleAccount'
@@ -460,10 +457,18 @@ async function createClients({
       ? await toSmartAccount({
           client: publicClient,
           entryPoint,
-          nonceKeyManager,
           abi: SIMPLE_ACCOUNT_ABI,
           async getAddress() {
             return simpleAccountAddressPromise!
+          },
+          async getNonce() {
+            const nonce = await publicClient.readContract({
+              abi: entryPoint08Abi,
+              address: entryPointAddress,
+              functionName: 'getNonce',
+              args: [await simpleAccountAddressPromise!, userOperationNonceKey],
+            })
+            return nonce + userOperationNonceOffset
           },
           async getFactoryArgs() {
             const accountAddress = await simpleAccountAddressPromise!
@@ -537,14 +542,14 @@ async function createClients({
       : await toSimple7702SmartAccount({
           client: publicClient,
           entryPoint,
-          getNonce(parameters) {
-            const key = BigInt(nonceKey ?? parameters?.key ?? Date.now())
-            return publicClient.readContract({
+          async getNonce() {
+            const nonce = await publicClient.readContract({
               abi: entryPoint08Abi,
               address: entryPointAddress,
               functionName: 'getNonce',
-              args: [owner.address, key],
+              args: [owner.address, userOperationNonceKey],
             })
+            return nonce + userOperationNonceOffset
           },
           implementation: SMART_ACCOUNT_IMPLEMENTATION,
           owner: owner as PrivateKeyAccount,

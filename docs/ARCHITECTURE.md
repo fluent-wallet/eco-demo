@@ -42,6 +42,9 @@ The repo has two layers:
 - Single mode uses the current ABI call, unless "single CFX transfer" is enabled.
 - Batch mode uses the explicit call list; "add current call" snapshots the current ABI form, and "add CFX transfer" snapshots transfer fields.
 - `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`.
+- Runtime config includes `Nonce key`, default `0`; `App.tsx` validates it before preparing or sending UserOps.
+- `accountAbstraction.ts` reads nonce with `EntryPoint.getNonce(sender, nonceKey)` for both SimpleAccount and Simple7702.
+- Bulk UserOps use the same configured nonce key but pass a per-item `nonceOffset`; the account layer returns `entryPointNonce + nonceOffset` to reduce concurrent nonce collisions.
 - FooDapp remains the default sample via built-in ABI.
 - Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.

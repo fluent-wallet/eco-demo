@@ -7,6 +7,7 @@
 - Add focused encode tests or fixtures for `apps/eip-4337-demo/src/lib/contractCalls.ts`.
 - Validate ABI-driven call builder with real verified contracts that include nested tuples/arrays and overloaded methods.
 - Check ConfluxScan edge cases: unverified contracts, malformed ABI payloads, and contracts with no writable methods.
+- Add focused coverage or fixtures for UserOperation nonce key parsing and bulk nonce offset behavior.
 - Decide root README language policy: Chinese, English, or bilingual.
 
 ## Engineering
