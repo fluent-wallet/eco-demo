@@ -47,12 +47,14 @@ eco-demo/
   - CFX transfer calls
   - bulk UserOps
   - configurable UserOperation nonce key with bulk nonce offsets
+  - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, and nonce offset calculation
 - 7702 demo:
   - network selector
   - authorization list editor
   - nonce query
   - delegated transaction sender
   - result panel
+  - no-wallet render safety for injected Fluent/MetaMask helper clients
 - Both demos:
   - top-left `返回首页` link works in local dev and GitHub Pages subpath deployments.
 - Production homepage:
@@ -62,9 +64,7 @@ eco-demo/
 ## Current Open Work
 
 - Confirm 4337 guide modal copy, first-open behavior, and whether a visible reset entry is needed.
-- Decide whether 4337 ABI cache needs visible cache management, such as clear cache or cached-contract selector.
-- Add focused encode fixtures/tests for `apps/eip-4337-demo/src/lib/contractCalls.ts`; current validation is compile/browser checked but not covered by automated unit tests.
-- Validate 4337 ABI-driven call builder against more real-world contract shapes: nested tuples/arrays, overloaded methods from verified contracts, and unverified/malformed ConfluxScan responses.
+- Validate 4337 ABI-driven call builder against more real-world verified contracts, especially nested tuples/arrays and overloaded methods from ConfluxScan.
 - Decide root README language policy: Chinese, English, or bilingual.
 - Add Pages smoke checks after `pnpm build` if deployment regressions become common.
 
@@ -83,11 +83,12 @@ eco-demo/
 - 4337 defaults to FooDapp address and built-in FooDapp ABI.
 - Other contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`.
 - 4337 contract method calls require a cached ABI; uncached addresses must run ABI query first.
+- ConfluxScan ABI payload validation lives in `parseConfluxScanAbiResponse`; network fetch stays in `fetchContractAbi`.
 - ABI call arguments are parsed before UserOperation wallet/private-key prerequisites so users see builder errors first.
 - Batch mode sends only calls explicitly added to the executeBatch list; changing the form after adding a call does not mutate existing list entries.
 - CFX transfer calls do not require ABI and should not display stale ABI-cache warnings in single transfer mode.
-- UserOperation nonce key is a runtime config field, default `0`, validated as a non-negative integer `< 2^192`.
-- Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends keep that configured key and add per-item offsets to the returned nonce so concurrent UserOps do not collide.
+- UserOperation nonce key is a runtime config field, default `0`, validated in `src/lib/nonceKey.ts` as a non-negative integer `< 2^192`.
+- Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends keep that configured key and add per-item offsets through `src/lib/userOperationNonce.ts` so concurrent UserOps do not collide.
 - Private-key flows are test/debug only and must remain visibly warned.
 
 ## Commands
@@ -97,6 +98,10 @@ pnpm install
 pnpm dev
 pnpm lint
 pnpm build
+pnpm --filter @eco-demo/eip-4337-demo test:contract-calls
+pnpm --filter @eco-demo/eip-4337-demo test:conflux-scan-abi
+pnpm --filter @eco-demo/eip-4337-demo test:nonce-key
+pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 ```
 
 Local shell routes during `pnpm dev`:

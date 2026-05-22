@@ -34,6 +34,8 @@ The repo has two layers:
 - Contract and endpoint defaults live under `src/constants` and `src/config`.
 - Contract ABI lookup and ABI parameter encoding live in `src/lib/contractCalls.ts`.
 - `contractCalls.ts` is responsible for turning form strings/JSON into viem args. It validates arrays, fixed arrays, tuples with named or indexed fields, addresses, booleans, signed/unsigned integers, bytes/fixed bytes, and wraps encode failures with user-facing errors.
+- ConfluxScan ABI payload parsing is isolated in `parseConfluxScanAbiResponse`; HTTP querying remains in `fetchContractAbi`.
+- Nonce key validation lives in `src/lib/nonceKey.ts`; UserOperation nonce offset math lives in `src/lib/userOperationNonce.ts`.
 - Wallet UX is topbar-scoped:
   - `WalletControl` opens a connect modal using configured wagmi connectors.
   - Connected state shows connector name, full address, and chain status.
@@ -44,15 +46,17 @@ The repo has two layers:
 - `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`.
 - Runtime config includes `Nonce key`, default `0`; `App.tsx` validates it before preparing or sending UserOps.
 - `accountAbstraction.ts` reads nonce with `EntryPoint.getNonce(sender, nonceKey)` for both SimpleAccount and Simple7702.
-- Bulk UserOps use the same configured nonce key but pass a per-item `nonceOffset`; the account layer returns `entryPointNonce + nonceOffset` to reduce concurrent nonce collisions.
+- Bulk UserOps use the same configured nonce key but pass a per-item `nonceOffset`; the account layer applies `applyUserOperationNonceOffset(entryPointNonce, nonceOffset)` to reduce concurrent nonce collisions.
 - FooDapp remains the default sample via built-in ABI.
 - Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
+- Lightweight fixtures live in `apps/eip-4337-demo/scripts/*.fixtures.mjs`. They use Node 22 type stripping to import selected `.ts` modules and avoid adding a test framework.
 
 ### `apps/eip-7702-demo`
 
 - Owns 7702 authorization and delegated transaction flows.
 - Chain and RPC defaults live in `src/constants.ts`.
+- `src/constants.ts` exports injected Fluent/MetaMask helper clients with fallback providers. Keep this defensive path so the page can render in browsers without wallet extensions.
 
 ## Navigation
 
@@ -68,4 +72,5 @@ The repo has two layers:
 - When adding a demo, update both local shell routing and production build routing together.
 - Keep 4337 smart account signing/sending changes separated from UI call-builder changes unless the UserOperation contract changes require both.
 - Keep ABI parsing behavior in `contractCalls.ts`; avoid duplicating per-field parsing inside React components.
+- Keep nonce key and nonce offset validation in their small `src/lib/*` helpers so Node fixtures can test them without loading the React app or full AA client stack.
 - Keep private-key warnings visually strong and explicit.

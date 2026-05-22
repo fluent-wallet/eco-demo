@@ -30,6 +30,7 @@ import {
   SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
   SMART_ACCOUNT_IMPLEMENTATION,
 } from '../constants/contracts'
+import { applyUserOperationNonceOffset } from './userOperationNonce'
 import type {
   AccountMode,
   OwnerMode,
@@ -440,7 +441,6 @@ async function createClients({
     version: '0.8' as const,
   }
   const userOperationNonceKey = nonceKey
-  const userOperationNonceOffset = BigInt(nonceOffset)
 
   const simpleAccountAddressPromise =
     accountMode === 'simpleAccount'
@@ -468,7 +468,7 @@ async function createClients({
               functionName: 'getNonce',
               args: [await simpleAccountAddressPromise!, userOperationNonceKey],
             })
-            return nonce + userOperationNonceOffset
+            return applyUserOperationNonceOffset(nonce, nonceOffset)
           },
           async getFactoryArgs() {
             const accountAddress = await simpleAccountAddressPromise!
@@ -549,7 +549,7 @@ async function createClients({
               functionName: 'getNonce',
               args: [owner.address, userOperationNonceKey],
             })
-            return nonce + userOperationNonceOffset
+            return applyUserOperationNonceOffset(nonce, nonceOffset)
           },
           implementation: SMART_ACCOUNT_IMPLEMENTATION,
           owner: owner as PrivateKeyAccount,
