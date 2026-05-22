@@ -46,6 +46,7 @@ eco-demo/
   - executeBatch call list
   - CFX transfer calls
   - bulk UserOps
+  - configurable UserOperation nonce key with bulk nonce offsets
 - 7702 demo:
   - network selector
   - authorization list editor
@@ -76,6 +77,7 @@ eco-demo/
 - 4337 wallet modal should expose all configured wagmi connectors.
 - 4337 connected wallet status shows the full address, connector name, and chain status.
 - 4337 fixed target chain is Conflux eSpace Testnet, chain ID `71`.
+- 4337 does not currently support Sepolia; prior Sepolia work was reverted and should not be restored without a fresh request.
 - 4337 instructions stay in a modal to keep the workbench compact.
 - 4337 operation UI is a single advanced-first call builder.
 - 4337 defaults to FooDapp address and built-in FooDapp ABI.
@@ -84,6 +86,8 @@ eco-demo/
 - ABI call arguments are parsed before UserOperation wallet/private-key prerequisites so users see builder errors first.
 - Batch mode sends only calls explicitly added to the executeBatch list; changing the form after adding a call does not mutate existing list entries.
 - CFX transfer calls do not require ABI and should not display stale ABI-cache warnings in single transfer mode.
+- UserOperation nonce key is a runtime config field, default `0`, validated as a non-negative integer `< 2^192`.
+- Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends keep that configured key and add per-item offsets to the returned nonce so concurrent UserOps do not collide.
 - Private-key flows are test/debug only and must remain visibly warned.
 
 ## Commands

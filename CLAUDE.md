@@ -27,6 +27,7 @@ pnpm build
 - 4337 side panels now start with runtime config; wallet no longer occupies a large sidebar card.
 - 4337 operation builder is ABI-driven, defaults to FooDapp + built-in ABI, and caches queried ConfluxScan ABIs in `localStorage` under `eco-demo:eip-4337-abi-cache`.
 - 4337 ABI call inputs validate arrays, tuples, tuple fields, addresses, booleans, integers, bytes/fixed bytes, payable value, and CFX transfers. Single and batch modes both build `{ to, data, value }[]`; batch mode only uses calls added to the list.
+- 4337 runtime config exposes `Nonce key`, default `0`. Both SimpleAccount and Simple7702 call `EntryPoint.getNonce(sender, key)` with this value. Bulk UserOps keep the same key and add per-item nonce offsets to avoid conflicts.
 - 7702 demo has network selector, authorization list, nonce query, delegated transaction sender, and result panel.
 - Demo home links are path-aware for local dev and GitHub Pages subpaths; they should not be changed back to absolute `/`.
 
@@ -36,5 +37,6 @@ pnpm build
 - Do not casually change app ports or route assembly in `scripts/dev.mjs` / `scripts/build-pages.mjs`.
 - Keep private-key warning copy and red warning styling visibly strong.
 - User-facing copy defaults to Chinese; protocol names, RPC names, method names may stay English.
+- 4337 remains Conflux eSpace Testnet only; Sepolia support was intentionally reverted and should not be reintroduced unless explicitly requested.
 - Run `pnpm lint` and `pnpm build` before handoff or commit unless blocked.
 - Use `pnpm dev` for visual QA. Local port binding may need approval in sandboxed Codex sessions.

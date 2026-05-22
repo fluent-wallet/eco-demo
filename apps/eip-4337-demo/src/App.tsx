@@ -53,7 +53,8 @@ type AdvancedBatchCall = UserOperationCall & {
 type BulkUserOperationResult = {
   owner: 'wallet' | 'privateKey'
   index: number
-  nonceKey: number
+  nonceKey: string
+  nonceOffset: number
   status: 'success' | 'error'
   result?: UserOperationResult
   error?: string
@@ -126,6 +127,20 @@ function compact(value: string | undefined) {
 
 function getErrorMessage(caught: unknown, fallback: string) {
   return caught instanceof Error ? caught.message : fallback
+}
+
+function parseNonceKey(value: string) {
+  const normalized = value.trim() || '0'
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error('Nonce key 需要填写非负整数。')
+  }
+
+  const parsed = BigInt(normalized)
+  if (parsed >= 2n ** 192n) {
+    throw new Error('Nonce key 必须小于 2^192。')
+  }
+
+  return parsed
 }
 
 function parseCfxAmount(
@@ -332,6 +347,8 @@ function ConfigPanel({
   setBundlerUrl,
   entryPoint,
   setEntryPoint,
+  nonceKey,
+  setNonceKey,
   paymaster,
   setPaymaster,
   usePaymaster,
@@ -347,6 +364,8 @@ function ConfigPanel({
   setBundlerUrl: (value: string) => void
   entryPoint: string
   setEntryPoint: (value: string) => void
+  nonceKey: string
+  setNonceKey: (value: string) => void
   paymaster: string
   setPaymaster: (value: string) => void
   usePaymaster: boolean
@@ -376,6 +395,15 @@ function ConfigPanel({
         <input
           value={entryPoint}
           onChange={(event) => setEntryPoint(event.target.value)}
+        />
+      </label>
+      <label className="field">
+        <span>Nonce key（不同的key对应不同的nonce，更改后nonce重新计数）</span>
+        <input
+          value={nonceKey}
+          onChange={(event) => setNonceKey(event.target.value)}
+          inputMode="numeric"
+          placeholder="0"
         />
       </label>
       <label className="field">
@@ -861,12 +889,15 @@ function OperationPanel({
             {bulkResults.map((item) => (
               <div
                 className="bulk-result"
-                key={`${item.owner}-${item.index}-${item.nonceKey}`}
+                key={`${item.owner}-${item.index}-${item.nonceKey}-${item.nonceOffset}`}
               >
                 <span>{item.owner === 'wallet' ? 'A' : 'B'} #{item.index + 1}</span>
                 <code>{item.result?.userOpHash ?? item.error ?? '-'}</code>
                 <span>{item.status === 'success' ? '成功' : '错误'}</span>
-                <code>{item.result?.txHash ?? `nonce key ${item.nonceKey}`}</code>
+                <code>
+                  {item.result?.txHash ??
+                    `nonce key ${item.nonceKey}, +${item.nonceOffset}`}
+                </code>
               </div>
             ))}
           </div>
@@ -880,6 +911,7 @@ function App() {
   const { data: walletClient } = useWalletClient()
   const [bundlerUrl, setBundlerUrl] = useState(DEFAULT_BUNDLER_URL)
   const [entryPoint, setEntryPoint] = useState<string>(ENTRY_POINT_V08_ADDRESS)
+  const [nonceKey, setNonceKey] = useState('0')
   const [paymaster, setPaymaster] = useState<string>(DEFAULT_PAYMASTER_ADDRESS)
   const [usePaymaster, setUsePaymaster] = useState(true)
   const [accountMode, setAccountMode] =
@@ -929,6 +961,14 @@ function App() {
   const canUseConfig =
     bundlerUrl.trim().length > 0 &&
     isAddress(entryPoint) &&
+    (() => {
+      try {
+        parseNonceKey(nonceKey)
+        return true
+      } catch {
+        return false
+      }
+    })() &&
     (!usePaymaster || isAddress(paymaster))
 
   const refreshDiagnostics = useCallback(async () => {
@@ -1173,8 +1213,9 @@ function App() {
 
   const buildParams = async () => {
     if (!canUseConfig) {
-      throw new Error('请填写有效的 Bundler URL、EntryPoint 和 Paymaster。')
+      throw new Error('请填写有效的 Bundler URL、EntryPoint、Nonce key 和 Paymaster。')
     }
+    const userOperationNonceKey = parseNonceKey(nonceKey)
     const calls = buildCalls()
     if (ownerMode === 'wallet' && !walletClient) {
       throw new Error('请先连接钱包。')
@@ -1189,6 +1230,7 @@ function App() {
       ownerMode,
       bundlerUrl,
       entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
+      nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
         : undefined,
@@ -1200,23 +1242,29 @@ function App() {
   const buildPrivateKeyParams = async (
     privateKey: Hex,
     calls = buildCalls(),
-  ) => ({
-    walletClient: undefined,
-    accountMode,
-    ownerMode: 'privateKey' as const,
-    bundlerUrl,
-    entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
-    paymasterAddress: usePaymaster
-      ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
-      : undefined,
-    ownerPrivateKey: privateKey,
-    calls,
-  })
+  ) => {
+    const userOperationNonceKey = parseNonceKey(nonceKey)
+
+    return {
+      walletClient: undefined,
+      accountMode,
+      ownerMode: 'privateKey' as const,
+      bundlerUrl,
+      entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
+      nonceKey: userOperationNonceKey,
+      paymasterAddress: usePaymaster
+        ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
+        : undefined,
+      ownerPrivateKey: privateKey,
+      calls,
+    }
+  }
 
   const buildWalletParams = async (calls = buildCalls()) => {
     if (!walletClient) {
       throw new Error('批量发送前请先连接钱包 A。')
     }
+    const userOperationNonceKey = parseNonceKey(nonceKey)
 
     return {
       walletClient,
@@ -1224,6 +1272,7 @@ function App() {
       ownerMode: 'wallet' as const,
       bundlerUrl,
       entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
+      nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
         : undefined,
@@ -1268,7 +1317,7 @@ function App() {
 
     try {
       if (!canUseConfig) {
-        throw new Error('请填写有效的 Bundler URL、EntryPoint 和 Paymaster。')
+        throw new Error('请填写有效的 Bundler URL、EntryPoint、Nonce key 和 Paymaster。')
       }
       const calls = buildCalls()
       if (!walletClient) {
@@ -1289,25 +1338,30 @@ function App() {
 
       const walletParams = await buildWalletParams(calls)
       const privateKeyParams = await buildPrivateKeyParams(bulkPrivateKey, calls)
-      const baseNonceKey = Date.now()
+      const userOperationNonceKeyLabel = (nonceKey.trim() || '0').replace(
+        /^0+(?=\d)/,
+        '',
+      )
       const settled = await Promise.allSettled(
         [
           ...Array.from({ length: count }, (_, index) => ({
             owner: 'wallet' as const,
             index,
             params: walletParams,
-            nonceKey: baseNonceKey + index,
+            nonceKey: userOperationNonceKeyLabel,
+            nonceOffset: index,
           })),
           ...Array.from({ length: count }, (_, index) => ({
             owner: 'privateKey' as const,
             index,
             params: privateKeyParams,
-            nonceKey: baseNonceKey + count + index,
+            nonceKey: userOperationNonceKeyLabel,
+            nonceOffset: count + index,
           })),
         ].map((item) =>
           sendDemoUserOperation({
             ...item.params,
-            nonceKey: item.nonceKey,
+            nonceOffset: item.nonceOffset,
           }).then((result) => ({ ...item, result })),
         ),
       )
@@ -1317,6 +1371,7 @@ function App() {
             owner: item.value.owner,
             index: item.value.index,
             nonceKey: item.value.nonceKey,
+            nonceOffset: item.value.nonceOffset,
             status: 'success',
             result: item.value.result,
           }
@@ -1324,10 +1379,6 @@ function App() {
 
         const owner = index < count ? 'wallet' : 'privateKey'
         const ownerIndex = index < count ? index : index - count
-        const nonceKey =
-          owner === 'wallet'
-            ? baseNonceKey + ownerIndex
-            : baseNonceKey + count + ownerIndex
         const explanation = explainUserOperationError(item.reason)
         const message =
           item.reason instanceof Error
@@ -1336,7 +1387,8 @@ function App() {
         return {
           owner,
           index: ownerIndex,
-          nonceKey,
+          nonceKey: userOperationNonceKeyLabel,
+          nonceOffset: index,
           status: 'error',
           error: explanation ? `${explanation} ${message}` : message,
         }
@@ -1391,6 +1443,8 @@ function App() {
             setBundlerUrl={setBundlerUrl}
             entryPoint={entryPoint}
             setEntryPoint={setEntryPoint}
+            nonceKey={nonceKey}
+            setNonceKey={setNonceKey}
             paymaster={paymaster}
             setPaymaster={setPaymaster}
             usePaymaster={usePaymaster}
