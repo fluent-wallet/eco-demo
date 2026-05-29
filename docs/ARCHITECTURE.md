@@ -57,6 +57,8 @@ The repo has two layers:
 - Owns 7702 authorization and delegated transaction flows.
 - Chain and RPC defaults live in `src/constants.ts`.
 - `src/constants.ts` exports injected Fluent/MetaMask helper clients with fallback providers. Keep this defensive path so the page can render in browsers without wallet extensions.
+- `App.tsx` owns the authorization form, nonce lookup, and delegate send flow.
+- tx sender and EOA private-key inputs are intentionally plain-text controlled inputs. `normalizeHexInput` auto-prefixes non-empty values with `0x`; use the normalized state for both `privateKeyToAccount` during delegate sending and EOA nonce lookup.
 
 ## Navigation
 
@@ -74,3 +76,4 @@ The repo has two layers:
 - Keep ABI parsing behavior in `contractCalls.ts`; avoid duplicating per-field parsing inside React components.
 - Keep nonce key and nonce offset validation in their small `src/lib/*` helpers so Node fixtures can test them without loading the React app or full AA client stack.
 - Keep private-key warnings visually strong and explicit.
+- Do not re-mask 7702 private-key inputs unless explicitly requested; current test workflow expects visible keys.

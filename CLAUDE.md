@@ -34,13 +34,14 @@ pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 - 4337 runtime config exposes `Nonce key`, default `0`. Parsing lives in `src/lib/nonceKey.ts`. Both SimpleAccount and Simple7702 call `EntryPoint.getNonce(sender, key)` with this value. Bulk UserOps keep the same key and apply per-item offsets through `src/lib/userOperationNonce.ts`.
 - 4337 has Node fixture scripts under `apps/eip-4337-demo/scripts/` for ABI call encoding, ConfluxScan ABI response parsing, nonce key parsing, and UserOperation nonce offsets. They use Node 22 `--experimental-strip-types` and do not require a test framework.
 - 7702 demo has network selector, authorization list, nonce query, delegated transaction sender, and result panel. Its injected Fluent/MetaMask helper clients must not crash module load when wallet providers are absent.
+- 7702 tx sender and EOA private-key inputs are intentionally plain text for test workflow visibility. `App.tsx` normalizes non-empty key input by auto-prefixing `0x` when missing; keep this behavior for both delegate sending and nonce lookup.
 - Demo home links are path-aware for local dev and GitHub Pages subpaths; they should not be changed back to absolute `/`.
 
 ## Guardrails
 
 - Do not edit generated `dist/`, `apps/*/dist/`, or `node_modules/`.
 - Do not casually change app ports or route assembly in `scripts/dev.mjs` / `scripts/build-pages.mjs`.
-- Keep private-key warning copy and red warning styling visibly strong.
+- Keep private-key warnings visibly strong and explicit; private-key flows are test-account only.
 - User-facing copy defaults to Chinese; protocol names, RPC names, method names may stay English.
 - 4337 remains Conflux eSpace Testnet only; Sepolia support was intentionally reverted and should not be reintroduced unless explicitly requested.
 - Run `pnpm lint` and `pnpm build` before handoff or commit unless blocked.

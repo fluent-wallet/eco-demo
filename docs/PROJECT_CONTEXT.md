@@ -54,6 +54,8 @@ eco-demo/
   - nonce query
   - delegated transaction sender
   - result panel
+  - plain-text tx sender and EOA private-key inputs for test workflow visibility
+  - automatic `0x` prefix normalization for non-empty private-key input
   - no-wallet render safety for injected Fluent/MetaMask helper clients
 - Both demos:
   - top-left `返回首页` link works in local dev and GitHub Pages subpath deployments.
@@ -90,6 +92,7 @@ eco-demo/
 - UserOperation nonce key is a runtime config field, default `0`, validated in `src/lib/nonceKey.ts` as a non-negative integer `< 2^192`.
 - Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends keep that configured key and add per-item offsets through `src/lib/userOperationNonce.ts` so concurrent UserOps do not collide.
 - Private-key flows are test/debug only and must remain visibly warned.
+- 7702 private-key inputs are intentionally not masked. Keep the auto-`0x` normalization in `App.tsx` aligned across tx sender input, EOA authorization rows, delegate sending, and nonce lookup.
 
 ## Commands
 
