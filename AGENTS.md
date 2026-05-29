@@ -39,6 +39,7 @@ Before changing code, read:
 - EIP-4337 runtime config exposes `Nonce key` with default `0`. SimpleAccount and Simple7702 both read `EntryPoint.getNonce(sender, key)`. Bulk UserOps use the same configured key and add per-item nonce offsets through `applyUserOperationNonceOffset`.
 - EIP-4337 has lightweight Node fixture scripts for ABI call encoding, ConfluxScan ABI response parsing, nonce key parsing, and UserOperation nonce offsets.
 - EIP-7702 demo includes network selector, authorization list editor, nonce query, delegated transaction sender, and result panel. Injected Fluent/MetaMask helper clients use fallback providers so the page still renders when no wallet extension is present.
+- EIP-7702 tx sender and EOA private-key inputs are intentionally shown as plain text for test workflow visibility. Non-empty key input is normalized in `App.tsx` by auto-prefixing `0x` when missing; nonce lookup and delegate sending both rely on that normalized value.
 - Both demos expose top-left `返回首页` links that work in local dev and GitHub Pages subpath deployments.
 - Production homepage labels the first app as `EIP-4337 Demo`.
 
@@ -67,7 +68,7 @@ Use `pnpm dev` for visual QA. Run relevant fixture scripts plus `pnpm lint` and 
 - `scripts/dev.mjs`
 - `scripts/build-pages.mjs`
 - `.github/workflows/pages.yml`
-- Private-key warning copy and red warning styles
+- Private-key warning copy and red warning styles; private-key flows must remain visibly test-account only
 
 ## Active Risks
 

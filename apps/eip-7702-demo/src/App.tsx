@@ -57,6 +57,11 @@ function compact(value: string | undefined) {
   return `${value.slice(0, 10)}...${value.slice(-8)}`;
 }
 
+function normalizeHexInput(value: string): HexString | "" {
+  if (!value) return "";
+  return value.startsWith("0x") ? (value as HexString) : `0x${value}`;
+}
+
 function getExplorerTxUrl(hash: string) {
   const base =
     chainId === "8889"
@@ -73,7 +78,7 @@ const statusLabel = {
 } as const;
 
 function App() {
-  const [txSenderPK, setTxSenderPK] = useState<HexString>();
+  const [txSenderPK, setTxSenderPK] = useState<HexString | "">("");
   const [to, setTo] = useState<HexString>();
   const [hash, setHash] = useState<string>();
   const [data, setData] = useState<HexString>("0x");
@@ -224,7 +229,7 @@ function App() {
             </div>
             <ol className="notes-list">
               <li className="note-danger">
-                pk 字段需要填写私钥（0x 开头）。页面不会保存私钥，但为了安全请只使用测试账户。
+                pk 字段需要填写私钥；未输入 0x 时会自动补全。页面不会保存私钥，但为了安全请只使用测试账户。
               </li>
               <li>
                 delegate 后如果希望 EOA 仍然可以被转账，delegated to 指向的合约需要支持 receive 方法。可以使用
@@ -286,10 +291,13 @@ function App() {
               <span>tx sender 私钥</span>
               <input
                 autoComplete="off"
-                onChange={(event) => setTxSenderPK(event.target.value as HexString)}
+                onChange={(event) =>
+                  setTxSenderPK(normalizeHexInput(event.target.value))
+                }
                 placeholder="0x..."
                 spellCheck={false}
-                type="password"
+                type="text"
+                value={txSenderPK}
               />
             </label>
 
@@ -357,12 +365,12 @@ function App() {
                       autoComplete="off"
                       onChange={(event) =>
                         updateAuthorization(index, {
-                          eoaPK: event.target.value as HexString,
+                          eoaPK: normalizeHexInput(event.target.value),
                         })
                       }
                       placeholder="0x..."
                       spellCheck={false}
-                      type="password"
+                      type="text"
                       value={item.eoaPK}
                     />
                   </label>
