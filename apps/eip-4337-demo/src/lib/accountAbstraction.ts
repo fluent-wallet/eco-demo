@@ -31,6 +31,7 @@ import {
   SMART_ACCOUNT_IMPLEMENTATION,
 } from '../constants/contracts'
 import { applyUserOperationNonceOffset } from './userOperationNonce'
+import { normalizePrivateKey } from './privateKey'
 import type {
   AccountMode,
   OwnerMode,
@@ -433,7 +434,7 @@ async function createClients({
   const owner =
     ownerMode === 'privateKey'
       ? ownerPrivateKey
-        ? privateKeyToAccount(normalizeHex(ownerPrivateKey))
+        ? privateKeyToAccount(normalizePrivateKey(ownerPrivateKey, 'Owner 私钥'))
         : (() => {
             throw new Error('调试模式下需要填写 Owner 私钥。')
           })()
@@ -772,7 +773,7 @@ export async function loadDiagnostics(
   })
   const owner =
     ownerMode === 'privateKey' && ownerPrivateKey
-      ? privateKeyToAccount(normalizeHex(ownerPrivateKey)).address
+      ? privateKeyToAccount(normalizePrivateKey(ownerPrivateKey, 'Owner 私钥')).address
       : walletClient?.account?.address
   const smartAccountAddress =
     owner && accountMode === 'simpleAccount'

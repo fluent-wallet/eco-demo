@@ -48,7 +48,8 @@ eco-demo/
   - bulk UserOps
   - configurable UserOperation nonce key with bulk per-item nonce keys and parallel signed-request broadcasting
   - plain-text Owner and bulk Owner private-key inputs for test workflow visibility
-  - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, and nonce offset calculation
+  - private-key validation before UserOperation prepare/send
+  - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, private-key validation, and nonce offset calculation
 - 7702 demo:
   - network selector
   - authorization list editor
@@ -56,7 +57,7 @@ eco-demo/
   - delegated transaction sender
   - result panel
   - plain-text tx sender and EOA private-key inputs for test workflow visibility
-  - automatic `0x` prefix normalization for non-empty private-key input
+  - automatic `0x` prefix normalization plus format/range validation for non-empty private-key input
   - no-wallet render safety for injected Fluent/MetaMask helper clients
 - Both demos:
   - top-left `返回首页` link works in local dev and GitHub Pages subpath deployments.
@@ -92,8 +93,8 @@ eco-demo/
 - CFX transfer calls do not require ABI and should not display stale ABI-cache warnings in single transfer mode.
 - UserOperation nonce key is a runtime config field, default `0`, validated in `src/lib/nonceKey.ts` as a non-negative integer `< 2^192`.
 - Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends assign per-item nonce keys starting from the configured key, sign all prepared requests first, then broadcast the signed UserOps in parallel so concurrent UserOps do not collide on the same nonce sequence.
-- Private-key flows are test/debug only and must remain visibly warned. 4337 Owner private-key inputs and 7702 private-key inputs are intentionally not masked.
-- 7702 private-key inputs are intentionally not masked. Keep the auto-`0x` normalization in `App.tsx` aligned across tx sender input, EOA authorization rows, delegate sending, and nonce lookup.
+- Private-key flows are test/debug only and must remain visibly warned. 4337 Owner private-key inputs and 7702 private-key inputs are intentionally not masked, but execution paths must reject values that are not 32-byte hex private keys in the secp256k1 range.
+- 7702 private-key inputs are intentionally not masked. Keep the auto-`0x` normalization and private-key validation in `App.tsx` aligned across tx sender input, EOA authorization rows, delegate sending, and nonce lookup.
 
 ## Commands
 
@@ -105,6 +106,7 @@ pnpm build
 pnpm --filter @eco-demo/eip-4337-demo test:contract-calls
 pnpm --filter @eco-demo/eip-4337-demo test:conflux-scan-abi
 pnpm --filter @eco-demo/eip-4337-demo test:nonce-key
+pnpm --filter @eco-demo/eip-4337-demo test:private-key
 pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 ```
 

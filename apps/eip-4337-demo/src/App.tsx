@@ -37,6 +37,7 @@ import {
   stringifyUserOperation,
 } from './lib/accountAbstraction'
 import { parseNonceKey } from './lib/nonceKey'
+import { normalizePrivateKey } from './lib/privateKey'
 import type {
   AccountMode,
   OwnerMode,
@@ -1027,9 +1028,7 @@ function App() {
 
   const getOwnerPrivateKey = () =>
     ownerPrivateKey
-      ? (ownerPrivateKey.startsWith('0x')
-          ? ownerPrivateKey
-          : `0x${ownerPrivateKey}`) as Hex
+      ? normalizePrivateKey(ownerPrivateKey, 'Owner 私钥')
       : undefined
 
   const setAdvancedArg = (index: number, value: string) => {
@@ -1322,9 +1321,10 @@ function App() {
         throw new Error('批量数量需要在 2 到 20 之间。')
       }
 
-      const bulkPrivateKey = (bulkOwnerPrivateKey.startsWith('0x')
-        ? bulkOwnerPrivateKey
-        : `0x${bulkOwnerPrivateKey}`) as Hex
+      const bulkPrivateKey = normalizePrivateKey(
+        bulkOwnerPrivateKey,
+        '批量 Owner 私钥',
+      )
 
       const baseNonceKey = parseNonceKey(nonceKey)
       const entryPointAddress = normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS)
