@@ -36,6 +36,7 @@ import type {
   OwnerMode,
   PaymasterBalance,
   PreparedUserOperation,
+  SignedUserOperation,
   UserOperationResult,
 } from '../types'
 
@@ -200,6 +201,13 @@ export type PrepareParams = DemoConfig & {
 }
 
 export type SendParams = PrepareParams
+
+export type SendSignedParams = Pick<
+  DemoConfig,
+  'bundlerUrl' | 'entryPointAddress' | 'rpcUrl'
+> & {
+  request: SignedUserOperation
+}
 
 function getRpcUrl(rpcUrl?: string) {
   return rpcUrl || confluxESpaceTestnet.rpcUrls.default.http[0]
@@ -638,6 +646,31 @@ export async function prepareDemoUserOperation(
   return request as PreparedUserOperation
 }
 
+export async function prepareSignedDemoUserOperation(
+  params: PrepareParams,
+): Promise<SignedUserOperation> {
+  const { account, accountMode, authorization, bundlerClient, isAccountDeployed } =
+    await createClients(params, { signAuthorization: true })
+
+  const request = (await bundlerClient.prepareUserOperation({
+    account,
+    parameters: getPrepareParameters(accountMode, isAccountDeployed),
+    calls: params.calls,
+    ...(authorization ? { authorization } : {}),
+    ...(params.paymasterAddress ? { paymaster: params.paymasterAddress } : {}),
+  } as never)) as PreparedUserOperation
+  const signature = await account.signUserOperation?.(request as never)
+
+  if (!signature) {
+    throw new Error('当前账户无法签名 UserOperation。')
+  }
+
+  return {
+    ...request,
+    signature,
+  }
+}
+
 export async function sendDemoUserOperation(
   params: SendParams,
 ): Promise<UserOperationResult> {
@@ -650,6 +683,53 @@ export async function sendDemoUserOperation(
     calls: params.calls,
     ...(authorization ? { authorization } : {}),
     ...(params.paymasterAddress ? { paymaster: params.paymasterAddress } : {}),
+  } as never)
+
+  let receipt: Awaited<
+    ReturnType<typeof bundlerClient.getUserOperationReceipt>
+  >
+  for (;;) {
+    try {
+      receipt = await bundlerClient.getUserOperationReceipt({ hash })
+      break
+    } catch (error) {
+      if (!isPendingReceiptError(error)) throw error
+      await sleep(2_000)
+    }
+  }
+
+  return {
+    userOpHash: hash,
+    txHash: receipt.receipt.transactionHash,
+    success: receipt.success,
+    blockNumber: receipt.receipt.blockNumber,
+    reason: receipt.reason,
+  }
+}
+
+export async function sendPreparedDemoUserOperation({
+  bundlerUrl,
+  entryPointAddress,
+  request,
+  rpcUrl,
+}: SendSignedParams): Promise<UserOperationResult> {
+  if (!bundlerUrl.trim()) {
+    throw new Error('请填写 Bundler RPC URL。')
+  }
+
+  const publicClient = createPublicClient({
+    chain: confluxESpaceTestnet,
+    transport: http(getRpcUrl(rpcUrl)),
+  })
+  const bundlerClient = createBundlerClient({
+    chain: confluxESpaceTestnet,
+    client: publicClient,
+    transport: http(bundlerUrl.trim()),
+  })
+
+  const hash = await bundlerClient.sendUserOperation({
+    ...request,
+    entryPointAddress,
   } as never)
 
   let receipt: Awaited<

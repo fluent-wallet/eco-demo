@@ -31,7 +31,9 @@ import {
   loadDiagnostics,
   normalizeAddress,
   prepareDemoUserOperation,
+  prepareSignedDemoUserOperation,
   sendDemoUserOperation,
+  sendPreparedDemoUserOperation,
   stringifyUserOperation,
 } from './lib/accountAbstraction'
 import { parseNonceKey } from './lib/nonceKey'
@@ -55,7 +57,6 @@ type BulkUserOperationResult = {
   owner: 'wallet' | 'privateKey'
   index: number
   nonceKey: string
-  nonceOffset: number
   status: 'success' | 'error'
   result?: UserOperationResult
   error?: string
@@ -65,6 +66,7 @@ const GUIDE_DISMISSED_KEY = 'eco-demo:eip-4337-guide-dismissed'
 const ABI_CACHE_STORAGE_KEY = 'eco-demo:eip-4337-abi-cache'
 const DEV_SHELL_PORT = '4173'
 const APP_ROUTE_SEGMENT = 'eip-4337'
+const USER_OPERATION_NONCE_KEY_LIMIT = 2n ** 192n
 
 function getHomeHref() {
   if (import.meta.env.DEV) {
@@ -438,7 +440,7 @@ function ConfigPanel({
         <label className="field">
           <span>Owner 私钥</span>
           <input
-            type="password"
+            type="text"
             value={ownerPrivateKey}
             onChange={(event) => setOwnerPrivateKey(event.target.value)}
             placeholder="0x..."
@@ -807,7 +809,7 @@ function OperationPanel({
         <label className="field wide-field">
           <span>批量 Owner 私钥</span>
           <input
-            type="password"
+            type="text"
             value={bulkOwnerPrivateKey}
             onChange={(event) => setBulkOwnerPrivateKey(event.target.value)}
             placeholder="0x..."
@@ -876,15 +878,12 @@ function OperationPanel({
             {bulkResults.map((item) => (
               <div
                 className="bulk-result"
-                key={`${item.owner}-${item.index}-${item.nonceKey}-${item.nonceOffset}`}
+                key={`${item.owner}-${item.index}-${item.nonceKey}`}
               >
                 <span>{item.owner === 'wallet' ? 'A' : 'B'} #{item.index + 1}</span>
                 <code>{item.result?.userOpHash ?? item.error ?? '-'}</code>
                 <span>{item.status === 'success' ? '成功' : '错误'}</span>
-                <code>
-                  {item.result?.txHash ??
-                    `nonce key ${item.nonceKey}, +${item.nonceOffset}`}
-                </code>
+                <code>{item.result?.txHash ?? `nonce key ${item.nonceKey}`}</code>
               </div>
             ))}
           </div>
@@ -1229,8 +1228,9 @@ function App() {
   const buildPrivateKeyParams = async (
     privateKey: Hex,
     calls = buildCalls(),
+    overrideNonceKey?: bigint,
   ) => {
-    const userOperationNonceKey = parseNonceKey(nonceKey)
+    const userOperationNonceKey = overrideNonceKey ?? parseNonceKey(nonceKey)
 
     return {
       walletClient: undefined,
@@ -1247,11 +1247,14 @@ function App() {
     }
   }
 
-  const buildWalletParams = async (calls = buildCalls()) => {
+  const buildWalletParams = async (
+    calls = buildCalls(),
+    overrideNonceKey?: bigint,
+  ) => {
     if (!walletClient) {
       throw new Error('批量发送前请先连接钱包 A。')
     }
-    const userOperationNonceKey = parseNonceKey(nonceKey)
+    const userOperationNonceKey = overrideNonceKey ?? parseNonceKey(nonceKey)
 
     return {
       walletClient,
@@ -1323,59 +1326,101 @@ function App() {
         ? bulkOwnerPrivateKey
         : `0x${bulkOwnerPrivateKey}`) as Hex
 
-      const walletParams = await buildWalletParams(calls)
-      const privateKeyParams = await buildPrivateKeyParams(bulkPrivateKey, calls)
-      const userOperationNonceKeyLabel = (nonceKey.trim() || '0').replace(
-        /^0+(?=\d)/,
-        '',
-      )
-      const settled = await Promise.allSettled(
-        [
-          ...Array.from({ length: count }, (_, index) => ({
-            owner: 'wallet' as const,
+      const baseNonceKey = parseNonceKey(nonceKey)
+      const entryPointAddress = normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS)
+      const getBulkNonceKey = (index: number) => {
+        const nextNonceKey = baseNonceKey + BigInt(index)
+        if (nextNonceKey >= USER_OPERATION_NONCE_KEY_LIMIT) {
+          throw new Error('批量 Nonce key 超出了 2^192 范围。')
+        }
+        return nextNonceKey
+      }
+      const getBulkNonceKeyLabel = (value: bigint) => value.toString()
+      const preparedItems: {
+        owner: 'wallet' | 'privateKey'
+        index: number
+        nonceKey: string
+        request?: Awaited<ReturnType<typeof prepareSignedDemoUserOperation>>
+        error?: string
+      }[] = []
+      const signBulk = async (owner: 'wallet' | 'privateKey') => {
+        for (let index = 0; index < count; index += 1) {
+          const itemNonceKey = getBulkNonceKey(index)
+          const item = {
+            owner,
             index,
-            params: walletParams,
-            nonceKey: userOperationNonceKeyLabel,
-            nonceOffset: index,
-          })),
-          ...Array.from({ length: count }, (_, index) => ({
-            owner: 'privateKey' as const,
-            index,
-            params: privateKeyParams,
-            nonceKey: userOperationNonceKeyLabel,
-            nonceOffset: count + index,
-          })),
-        ].map((item) =>
-          sendDemoUserOperation({
-            ...item.params,
-            nonceOffset: item.nonceOffset,
-          }).then((result) => ({ ...item, result })),
-        ),
+            nonceKey: getBulkNonceKeyLabel(itemNonceKey),
+          }
+
+          try {
+            const params =
+              owner === 'wallet'
+                ? await buildWalletParams(calls, itemNonceKey)
+                : await buildPrivateKeyParams(bulkPrivateKey, calls, itemNonceKey)
+
+            preparedItems.push({
+              ...item,
+              request: await prepareSignedDemoUserOperation(params),
+            })
+          } catch (reason) {
+            const explanation = explainUserOperationError(reason)
+            const message =
+              reason instanceof Error ? reason.message : '未知 UserOperation 错误。'
+            preparedItems.push({
+              ...item,
+              error: explanation ? `${explanation} ${message}` : message,
+            })
+          }
+        }
+      }
+
+      await signBulk('wallet')
+      await signBulk('privateKey')
+
+      const sentItems = await Promise.allSettled(
+        preparedItems.map(async (item) => {
+          if (!item.request) return { item, error: item.error }
+
+          try {
+            const result = await sendPreparedDemoUserOperation({
+              bundlerUrl,
+              entryPointAddress,
+              request: item.request,
+            })
+            return { item, result }
+          } catch (reason) {
+            const explanation = explainUserOperationError(reason)
+            const message =
+              reason instanceof Error ? reason.message : '未知 UserOperation 错误。'
+            return {
+              item,
+              error: explanation ? `${explanation} ${message}` : message,
+            }
+          }
+        }),
       )
-      const nextResults = settled.map((item, index): BulkUserOperationResult => {
-        if (item.status === 'fulfilled') {
+      const nextResults = sentItems.map((settled): BulkUserOperationResult => {
+        if (settled.status === 'fulfilled') {
+          const { error, item, result } = settled.value
           return {
-            owner: item.value.owner,
-            index: item.value.index,
-            nonceKey: item.value.nonceKey,
-            nonceOffset: item.value.nonceOffset,
-            status: 'success',
-            result: item.value.result,
+            owner: item.owner,
+            index: item.index,
+            nonceKey: item.nonceKey,
+            status: result ? 'success' : 'error',
+            result,
+            error,
           }
         }
 
-        const owner = index < count ? 'wallet' : 'privateKey'
-        const ownerIndex = index < count ? index : index - count
-        const explanation = explainUserOperationError(item.reason)
+        const explanation = explainUserOperationError(settled.reason)
         const message =
-          item.reason instanceof Error
-            ? item.reason.message
+          settled.reason instanceof Error
+            ? settled.reason.message
             : '未知 UserOperation 错误。'
         return {
-          owner,
-          index: ownerIndex,
-          nonceKey: userOperationNonceKeyLabel,
-          nonceOffset: index,
+          owner: 'wallet',
+          index: 0,
+          nonceKey: '-',
           status: 'error',
           error: explanation ? `${explanation} ${message}` : message,
         }
