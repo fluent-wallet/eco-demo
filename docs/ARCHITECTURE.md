@@ -48,7 +48,7 @@ The repo has two layers:
 - `accountAbstraction.ts` reads nonce with `EntryPoint.getNonce(sender, nonceKey)` for both SimpleAccount and Simple7702.
 - Bulk UserOps use per-item nonce keys starting from the configured key. The UI prepares and signs all bulk requests first, then broadcasts the signed UserOps in parallel so repeated sends do not share the same nonce sequence.
 - `prepareSignedDemoUserOperation` prepares and signs a request; `sendPreparedDemoUserOperation` broadcasts an already signed request and waits for the receipt. Keep this split when changing bulk-send behavior.
-- 4337 Owner private-key and bulk Owner private-key inputs are intentionally plain text. Keep red private-key warnings prominent.
+- 4337 Owner private-key and bulk Owner private-key inputs are intentionally plain text. `src/lib/privateKey.ts` validates 32-byte hex format and secp256k1 range before private-key UserOperation prepare/send. Keep red private-key warnings prominent.
 - FooDapp remains the default sample via built-in ABI.
 - Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
@@ -60,7 +60,7 @@ The repo has two layers:
 - Chain and RPC defaults live in `src/constants.ts`.
 - `src/constants.ts` exports injected Fluent/MetaMask helper clients with fallback providers. Keep this defensive path so the page can render in browsers without wallet extensions.
 - `App.tsx` owns the authorization form, nonce lookup, and delegate send flow.
-- tx sender and EOA private-key inputs are intentionally plain-text controlled inputs. `normalizeHexInput` auto-prefixes non-empty values with `0x`; use the normalized state for both `privateKeyToAccount` during delegate sending and EOA nonce lookup.
+- tx sender and EOA private-key inputs are intentionally plain-text controlled inputs. `normalizeHexInput` auto-prefixes non-empty values with `0x`; delegate sending and EOA nonce lookup must validate 32-byte hex format and secp256k1 range before calling `privateKeyToAccount`.
 
 ## Navigation
 
@@ -77,5 +77,6 @@ The repo has two layers:
 - Keep 4337 smart account signing/sending changes separated from UI call-builder changes unless the UserOperation contract changes require both.
 - Keep ABI parsing behavior in `contractCalls.ts`; avoid duplicating per-field parsing inside React components.
 - Keep nonce key and nonce offset validation in their small `src/lib/*` helpers so Node fixtures can test them without loading the React app or full AA client stack.
+- Keep 4337 private-key validation in `src/lib/privateKey.ts`; do not call `privateKeyToAccount` from private-key execution paths without first validating 32-byte hex format and secp256k1 range.
 - Keep private-key warnings visually strong and explicit.
 - Do not re-mask 4337 or 7702 private-key inputs unless explicitly requested; current test workflows expect visible keys.

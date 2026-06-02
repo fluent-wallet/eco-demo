@@ -62,6 +62,27 @@ function normalizeHexInput(value: string): HexString | "" {
   return value.startsWith("0x") ? (value as HexString) : `0x${value}`;
 }
 
+const PRIVATE_KEY_PATTERN = /^(0x)?[0-9a-fA-F]{64}$/;
+const SECP256K1_ORDER =
+  0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+
+function normalizePrivateKeyInput(value: string, label: string): HexString {
+  const trimmed = value.trim();
+  if (!PRIVATE_KEY_PATTERN.test(trimmed)) {
+    throw new Error(
+      `${label}必须是 32 字节十六进制私钥（64 个 hex 字符，可省略 0x）。`,
+    );
+  }
+
+  const normalized = normalizeHexInput(trimmed) as HexString;
+  const numericValue = BigInt(normalized);
+  if (numericValue <= 0n || numericValue >= SECP256K1_ORDER) {
+    throw new Error(`${label}不在 secp256k1 有效私钥范围内。`);
+  }
+
+  return normalized;
+}
+
 function getExplorerTxUrl(hash: string) {
   const base =
     chainId === "8889"
@@ -118,17 +139,28 @@ function App() {
         throw new Error("请填写 tx sender 的私钥。");
       }
 
-      const relay = privateKeyToAccount(txSenderPK);
+      const relay = privateKeyToAccount(
+        normalizePrivateKeyInput(txSenderPK, "tx sender 私钥"),
+      );
       const walletClient = createWalletClient({
         account: relay,
         chain,
         transport: http(),
       });
 
+      authorizationList.forEach((item, index) => {
+        if (item.eoaPK) {
+          normalizePrivateKeyInput(item.eoaPK, `授权 #${index + 1} EOA 私钥`);
+        }
+      });
+
       const list = authorizationList
-        .filter((item) => !!item.eoaPK && !!item.delegatedTo)
-        .map(async (item) => {
-          const eoa = privateKeyToAccount(item.eoaPK as HexString);
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => !!item.eoaPK && !!item.delegatedTo)
+        .map(async ({ item, index }) => {
+          const eoa = privateKeyToAccount(
+            normalizePrivateKeyInput(item.eoaPK, `授权 #${index + 1} EOA 私钥`),
+          );
           return walletClient.signAuthorization({
             contractAddress: item.delegatedTo as HexString,
             account: eoa,
@@ -168,7 +200,9 @@ function App() {
         throw new Error("查询 nonce 前需要先填写 EOA 私钥。");
       }
 
-      const eoa = privateKeyToAccount(eoaPK);
+      const eoa = privateKeyToAccount(
+        normalizePrivateKeyInput(eoaPK, `授权 #${index + 1} EOA 私钥`),
+      );
       const nonce = await publicClient.getTransactionCount({
         address: eoa.address,
       });
