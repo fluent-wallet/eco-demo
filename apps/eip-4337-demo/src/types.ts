@@ -32,6 +32,10 @@ export type PreparedUserOperation = {
   }
 }
 
+export type SignedUserOperation = PreparedUserOperation & {
+  signature: Hex
+}
+
 export type UserOperationResult = {
   userOpHash: Hex
   txHash?: Hex

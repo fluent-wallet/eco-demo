@@ -17,8 +17,9 @@
 ## Constraints
 
 - Private-key demos stay test-account only.
+- 4337 and 7702 private-key inputs are intentionally plain text for test workflow visibility.
 - 7702 private-key inputs are intentionally plain text and auto-prefix `0x` for non-empty input.
 - 4337 contract method calls require cached/queryable ABI; raw calldata mode was removed from the primary UI.
 - 4337 Simple7702 wallet flow depends on wallet support for EIP-7702 authorization signing.
-- Bundler packing behavior for multiple UserOps is RPC-implementation dependent.
+- 4337 bulk UserOps avoid same-sequence nonce conflicts by using per-item nonce keys and broadcasting already signed requests in parallel. Bundler packing behavior for multiple UserOps is still RPC-implementation dependent.
 - Demo home links are already path-aware; preserve local-shell and GitHub Pages subpath behavior.

@@ -46,7 +46,8 @@ eco-demo/
   - executeBatch call list
   - CFX transfer calls
   - bulk UserOps
-  - configurable UserOperation nonce key with bulk nonce offsets
+  - configurable UserOperation nonce key with bulk per-item nonce keys and parallel signed-request broadcasting
+  - plain-text Owner and bulk Owner private-key inputs for test workflow visibility
   - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, and nonce offset calculation
 - 7702 demo:
   - network selector
@@ -90,8 +91,8 @@ eco-demo/
 - Batch mode sends only calls explicitly added to the executeBatch list; changing the form after adding a call does not mutate existing list entries.
 - CFX transfer calls do not require ABI and should not display stale ABI-cache warnings in single transfer mode.
 - UserOperation nonce key is a runtime config field, default `0`, validated in `src/lib/nonceKey.ts` as a non-negative integer `< 2^192`.
-- Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends keep that configured key and add per-item offsets through `src/lib/userOperationNonce.ts` so concurrent UserOps do not collide.
-- Private-key flows are test/debug only and must remain visibly warned.
+- Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends assign per-item nonce keys starting from the configured key, sign all prepared requests first, then broadcast the signed UserOps in parallel so concurrent UserOps do not collide on the same nonce sequence.
+- Private-key flows are test/debug only and must remain visibly warned. 4337 Owner private-key inputs and 7702 private-key inputs are intentionally not masked.
 - 7702 private-key inputs are intentionally not masked. Keep the auto-`0x` normalization in `App.tsx` aligned across tx sender input, EOA authorization rows, delegate sending, and nonce lookup.
 
 ## Commands

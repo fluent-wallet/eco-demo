@@ -46,7 +46,9 @@ The repo has two layers:
 - `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`.
 - Runtime config includes `Nonce key`, default `0`; `App.tsx` validates it before preparing or sending UserOps.
 - `accountAbstraction.ts` reads nonce with `EntryPoint.getNonce(sender, nonceKey)` for both SimpleAccount and Simple7702.
-- Bulk UserOps use the same configured nonce key but pass a per-item `nonceOffset`; the account layer applies `applyUserOperationNonceOffset(entryPointNonce, nonceOffset)` to reduce concurrent nonce collisions.
+- Bulk UserOps use per-item nonce keys starting from the configured key. The UI prepares and signs all bulk requests first, then broadcasts the signed UserOps in parallel so repeated sends do not share the same nonce sequence.
+- `prepareSignedDemoUserOperation` prepares and signs a request; `sendPreparedDemoUserOperation` broadcasts an already signed request and waits for the receipt. Keep this split when changing bulk-send behavior.
+- 4337 Owner private-key and bulk Owner private-key inputs are intentionally plain text. Keep red private-key warnings prominent.
 - FooDapp remains the default sample via built-in ABI.
 - Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
@@ -76,4 +78,4 @@ The repo has two layers:
 - Keep ABI parsing behavior in `contractCalls.ts`; avoid duplicating per-field parsing inside React components.
 - Keep nonce key and nonce offset validation in their small `src/lib/*` helpers so Node fixtures can test them without loading the React app or full AA client stack.
 - Keep private-key warnings visually strong and explicit.
-- Do not re-mask 7702 private-key inputs unless explicitly requested; current test workflow expects visible keys.
+- Do not re-mask 4337 or 7702 private-key inputs unless explicitly requested; current test workflows expect visible keys.
