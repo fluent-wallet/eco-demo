@@ -808,7 +808,7 @@ function OperationPanel({
 
       <div className="bulk-row">
         <label className="field wide-field">
-          <span>批量 Owner 私钥</span>
+          <span>批量 Owner 私钥（选填）</span>
           <input
             type="text"
             value={bulkOwnerPrivateKey}
@@ -819,7 +819,7 @@ function OperationPanel({
           />
         </label>
         <label className="field">
-          <span>私钥批量数量</span>
+          <span>批量数量</span>
           <input
             value={bulkCount}
             onChange={(event) => setBulkCount(event.target.value)}
@@ -1312,19 +1312,14 @@ function App() {
       if (!walletClient) {
         throw new Error('批量发送前请先连接钱包 A。')
       }
-      if (!bulkOwnerPrivateKey.trim()) {
-        throw new Error('请填写批量 Owner 私钥。')
-      }
-
       const count = Number.parseInt(bulkCount, 10)
       if (!Number.isInteger(count) || count < 2 || count > 20) {
         throw new Error('批量数量需要在 2 到 20 之间。')
       }
 
-      const bulkPrivateKey = normalizePrivateKey(
-        bulkOwnerPrivateKey,
-        '批量 Owner 私钥',
-      )
+      const bulkPrivateKey = bulkOwnerPrivateKey.trim()
+        ? normalizePrivateKey(bulkOwnerPrivateKey, '批量 Owner 私钥')
+        : undefined
 
       const baseNonceKey = parseNonceKey(nonceKey)
       const entryPointAddress = normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS)
@@ -1356,7 +1351,7 @@ function App() {
             const params =
               owner === 'wallet'
                 ? await buildWalletParams(calls, itemNonceKey)
-                : await buildPrivateKeyParams(bulkPrivateKey, calls, itemNonceKey)
+                : await buildPrivateKeyParams(bulkPrivateKey!, calls, itemNonceKey)
 
             preparedItems.push({
               ...item,
@@ -1375,7 +1370,9 @@ function App() {
       }
 
       await signBulk('wallet')
-      await signBulk('privateKey')
+      if (bulkPrivateKey) {
+        await signBulk('privateKey')
+      }
 
       const sentItems = await Promise.allSettled(
         preparedItems.map(async (item) => {
@@ -1427,13 +1424,15 @@ function App() {
       })
 
       setBulkResults(nextResults)
-      const diagnostics = await loadDiagnostics(
-        undefined,
-        undefined,
-        'simpleAccount',
-        'privateKey',
-        bulkPrivateKey,
-      )
+      const diagnostics = bulkPrivateKey
+        ? await loadDiagnostics(
+            undefined,
+            undefined,
+            'simpleAccount',
+            'privateKey',
+            bulkPrivateKey,
+          )
+        : await loadDiagnostics(walletClient, undefined, accountMode, 'wallet')
       setOwnerCode(diagnostics.ownerCode)
       setSmartAccountAddress(diagnostics.smartAccountAddress)
       setSmartAccountBalance(diagnostics.smartAccountBalance)
