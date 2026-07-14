@@ -39,14 +39,15 @@ eco-demo/
 - 4337 demo:
   - topbar wallet control with multi-wallet connect modal
   - full connected address display
-  - chain status and switch-to-Conflux eSpace Testnet action
+  - Testnet/Mainnet status and switch-to-selected-network action
   - runtime config, contracts, diagnostics, guide modal
-  - ABI-driven write-call builder with ABI fetch/cache, method selection, argument parsing, payable values, and Chinese validation errors
+  - ABI-driven write-call builder with network-aware ABI fetch/cache, method selection, argument parsing, payable values, and Chinese validation errors
   - prepare/send UserOperation
   - executeBatch call list
   - CFX transfer calls
   - bulk UserOps
   - configurable UserOperation nonce key with bulk per-item nonce keys and parallel signed-request broadcasting
+  - bulk UserOps that always send through connected wallet A and optionally also send through bulk private-key owner B when that field is non-empty
   - plain-text Owner and bulk Owner private-key inputs for test workflow visibility
   - private-key validation before UserOperation prepare/send
   - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, private-key validation, and nonce offset calculation
@@ -71,6 +72,7 @@ eco-demo/
 - Validate 4337 ABI-driven call builder against more real-world verified contracts, especially nested tuples/arrays and overloaded methods from ConfluxScan.
 - Decide root README language policy: Chinese, English, or bilingual.
 - Add Pages smoke checks after `pnpm build` if deployment regressions become common.
+- Validate both 4337 account modes with funded Mainnet accounts before relying on the production path; mainnet Paymaster integration remains intentionally unconfigured.
 
 ## Key Decisions
 
@@ -80,12 +82,13 @@ eco-demo/
 - 4337 wallet connection belongs in the topbar, not a sidebar panel.
 - 4337 wallet modal should expose all configured wagmi connectors.
 - 4337 connected wallet status shows the full address, connector name, and chain status.
-- 4337 fixed target chain is Conflux eSpace Testnet, chain ID `71`.
-- 4337 does not currently support Sepolia; prior Sepolia work was reverted and should not be restored without a fresh request.
+- 4337 supports Conflux eSpace Testnet (chain ID `71`) and Mainnet (chain ID `1030`). Testnet is the default, with Bundler `https://bundler-testnet.confluxrpc.org`; Mainnet uses `https://bundler.confluxrpc.org`.
+- Both networks use EntryPoint v0.8 `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`. Mainnet Simple7702 uses implementation `0xF493e19B292855B467D7806b2CCF8c078518d43c`.
+- Mainnet has no default Paymaster: sponsorship starts disabled and enabling it leaves the Paymaster field empty for explicit input. Sepolia remains unsupported.
 - 4337 instructions stay in a modal to keep the workbench compact.
 - 4337 operation UI is a single advanced-first call builder.
-- 4337 defaults to FooDapp address and built-in FooDapp ABI.
-- Other contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`.
+- Testnet defaults to FooDapp address and built-in FooDapp ABI; Mainnet starts without a preset target contract.
+- Other contract ABIs are fetched from the selected network's ConfluxScan API and cached by network plus lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`.
 - 4337 contract method calls require a cached ABI; uncached addresses must run ABI query first.
 - ConfluxScan ABI payload validation lives in `parseConfluxScanAbiResponse`; network fetch stays in `fetchContractAbi`.
 - ABI call arguments are parsed before UserOperation wallet/private-key prerequisites so users see builder errors first.
@@ -93,6 +96,7 @@ eco-demo/
 - CFX transfer calls do not require ABI and should not display stale ABI-cache warnings in single transfer mode.
 - UserOperation nonce key is a runtime config field, default `0`, validated in `src/lib/nonceKey.ts` as a non-negative integer `< 2^192`.
 - Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends assign per-item nonce keys starting from the configured key, sign all prepared requests first, then broadcast the signed UserOps in parallel so concurrent UserOps do not collide on the same nonce sequence.
+- Bulk UserOps require connected wallet A. The bulk Owner private key is optional and only validated when non-empty; with a key present, the UI sends both wallet A and private-key owner B batches, and with no key it sends only wallet A.
 - Private-key flows are test/debug only and must remain visibly warned. 4337 Owner private-key inputs and 7702 private-key inputs are intentionally not masked, but execution paths must reject values that are not 32-byte hex private keys in the secp256k1 range.
 - 7702 private-key inputs are intentionally not masked. Keep the auto-`0x` normalization and private-key validation in `App.tsx` aligned across tx sender input, EOA authorization rows, delegate sending, and nonce lookup.
 

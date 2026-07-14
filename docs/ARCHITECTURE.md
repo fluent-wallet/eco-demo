@@ -30,6 +30,7 @@ The repo has two layers:
 ### `apps/eip-4337-demo`
 
 - Owns 4337 wallet/account abstraction flows.
+- `src/config/networks.ts` is the single source of truth for Testnet/Mainnet chain, Bundler, EntryPoint, account implementation, default Paymaster, and ConfluxScan API settings. Do not copy network constants back into UI or AA helpers.
 - Critical AA logic lives in `src/lib/accountAbstraction.ts`.
 - Contract and endpoint defaults live under `src/constants` and `src/config`.
 - Contract ABI lookup and ABI parameter encoding live in `src/lib/contractCalls.ts`.
@@ -39,7 +40,7 @@ The repo has two layers:
 - Wallet UX is topbar-scoped:
   - `WalletControl` opens a connect modal using configured wagmi connectors.
   - Connected state shows connector name, full address, and chain status.
-  - Wrong-chain state offers `switchChain({ chainId: 71 })`.
+  - Wrong-chain state offers a switch to the selected Conflux eSpace network: Testnet (`71`) or Mainnet (`1030`).
 - Operation panel builds generic calls as `{ to, data, value }[]`.
 - Single mode uses the current ABI call, unless "single CFX transfer" is enabled.
 - Batch mode uses the explicit call list; "add current call" snapshots the current ABI form, and "add CFX transfer" snapshots transfer fields.
@@ -47,11 +48,14 @@ The repo has two layers:
 - Runtime config includes `Nonce key`, default `0`; `App.tsx` validates it before preparing or sending UserOps.
 - `accountAbstraction.ts` reads nonce with `EntryPoint.getNonce(sender, nonceKey)` for both SimpleAccount and Simple7702.
 - Bulk UserOps use per-item nonce keys starting from the configured key. The UI prepares and signs all bulk requests first, then broadcasts the signed UserOps in parallel so repeated sends do not share the same nonce sequence.
+- Bulk UserOps always build a wallet-owner batch from the connected wallet A. `bulkOwnerPrivateKey` is optional; when it is non-empty, `App.tsx` validates it and adds a second private-key-owner batch, otherwise only wallet A is signed and sent.
 - `prepareSignedDemoUserOperation` prepares and signs a request; `sendPreparedDemoUserOperation` broadcasts an already signed request and waits for the receipt. Keep this split when changing bulk-send behavior.
 - 4337 Owner private-key and bulk Owner private-key inputs are intentionally plain text. `src/lib/privateKey.ts` validates 32-byte hex format and secp256k1 range before private-key UserOperation prepare/send. Keep red private-key warnings prominent.
-- FooDapp remains the default sample via built-in ABI.
-- Custom verified contracts require ConfluxScan ABI query before method calls are enabled.
+- Testnet FooDapp remains the default sample via built-in ABI; Mainnet intentionally has no preset target contract.
+- Custom verified contracts require ConfluxScan ABI query for the selected network before method calls are enabled.
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
+- ABI cache is partitioned by network, and ABI lookups use the selected network's ConfluxScan API so a Testnet ABI is never reused on Mainnet.
+- Runtime network selection resets Bundler, EntryPoint, Paymaster defaults, and the default ABI target. Mainnet uses no default Paymaster and begins with sponsorship disabled.
 - Lightweight fixtures live in `apps/eip-4337-demo/scripts/*.fixtures.mjs`. They use Node 22 type stripping to import selected `.ts` modules and avoid adding a test framework.
 
 ### `apps/eip-7702-demo`
@@ -78,5 +82,6 @@ The repo has two layers:
 - Keep ABI parsing behavior in `contractCalls.ts`; avoid duplicating per-field parsing inside React components.
 - Keep nonce key and nonce offset validation in their small `src/lib/*` helpers so Node fixtures can test them without loading the React app or full AA client stack.
 - Keep 4337 private-key validation in `src/lib/privateKey.ts`; do not call `privateKeyToAccount` from private-key execution paths without first validating 32-byte hex format and secp256k1 range.
+- Keep 4337 bulk private-key validation conditional on non-empty input. Empty bulk private key means wallet-only bulk send, not an error.
 - Keep private-key warnings visually strong and explicit.
 - Do not re-mask 4337 or 7702 private-key inputs unless explicitly requested; current test workflows expect visible keys.

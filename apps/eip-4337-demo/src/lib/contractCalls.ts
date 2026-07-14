@@ -9,8 +9,6 @@ import {
   type Hex,
 } from 'viem'
 
-const CONFLUXSCAN_TESTNET_API = 'https://evmapi-testnet.confluxscan.org/api'
-
 type ConfluxScanAbiResponse = {
   status?: string
   message?: string
@@ -49,8 +47,11 @@ export const FOO_DAPP_ABI = [
   },
 ] as const satisfies Abi
 
-export async function fetchContractAbi(address: Address): Promise<Abi> {
-  const url = new URL(CONFLUXSCAN_TESTNET_API)
+export async function fetchContractAbi(
+  address: Address,
+  confluxScanApi: string,
+): Promise<Abi> {
+  const url = new URL(confluxScanApi)
   url.searchParams.set('module', 'contract')
   url.searchParams.set('action', 'getabi')
   url.searchParams.set('address', address)

@@ -7,15 +7,13 @@ import {
   useWalletClient,
 } from 'wagmi'
 import { isAddress, parseEther, type Abi, type Address, type Hex } from 'viem'
-import { confluxESpaceTestnet, getExplorerTxUrl } from './config/chains'
+import { getExplorerTxUrl } from './config/chains'
 import {
-  DEFAULT_BUNDLER_URL,
-  DEFAULT_PAYMASTER_ADDRESS,
-  ENTRY_POINT_V08_ADDRESS,
-  FOO_DAPP_ADDRESS,
-  SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
-  SMART_ACCOUNT_IMPLEMENTATION,
-} from './constants/contracts'
+  EIP_4337_NETWORKS,
+  getEip4337Network,
+  type Eip4337Network,
+  type Eip4337NetworkId,
+} from './config/networks'
 import {
   encodeWritableFunctionCall,
   fetchContractAbi,
@@ -62,9 +60,11 @@ type BulkUserOperationResult = {
   result?: UserOperationResult
   error?: string
 }
+type AbiCacheByNetwork = Record<string, Record<string, Abi>>
 
 const GUIDE_DISMISSED_KEY = 'eco-demo:eip-4337-guide-dismissed'
 const ABI_CACHE_STORAGE_KEY = 'eco-demo:eip-4337-abi-cache'
+const DEFAULT_NETWORK_ID: Eip4337NetworkId = 71
 const DEV_SHELL_PORT = '4173'
 const APP_ROUTE_SEGMENT = 'eip-4337'
 const USER_OPERATION_NONCE_KEY_LIMIT = 2n ** 192n
@@ -95,10 +95,40 @@ function getAddressCacheKey(address: string) {
   return address.toLowerCase()
 }
 
-function getDefaultAbiCache(): Record<string, Abi> {
-  return {
-    [getAddressCacheKey(FOO_DAPP_ADDRESS)]: FOO_DAPP_ABI,
-  }
+function getDefaultAbiCache(): AbiCacheByNetwork {
+  return Object.values(EIP_4337_NETWORKS).reduce<AbiCacheByNetwork>(
+    (cache, network) => {
+      cache[network.id] = network.defaultFooDappAddress
+        ? { [getAddressCacheKey(network.defaultFooDappAddress)]: FOO_DAPP_ABI }
+        : {}
+      return cache
+    },
+    {},
+  )
+}
+
+function isNetworkedAbiCache(value: unknown): value is AbiCacheByNetwork {
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.values(value as Record<string, unknown>).some(
+      (item) =>
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+    )
+  )
+}
+
+function mergeAbiCaches(
+  defaults: AbiCacheByNetwork,
+  cache: AbiCacheByNetwork,
+) {
+  return Object.fromEntries(
+    Object.keys(defaults).map((networkId) => [
+      networkId,
+      { ...defaults[networkId], ...cache[networkId] },
+    ]),
+  ) as AbiCacheByNetwork
 }
 
 function loadAbiCache() {
@@ -111,16 +141,19 @@ function loadAbiCache() {
       return defaultCache
     }
 
-    return {
-      ...defaultCache,
-      ...(parsed as Record<string, Abi>),
+    if (isNetworkedAbiCache(parsed)) {
+      return mergeAbiCaches(defaultCache, parsed)
     }
+
+    return mergeAbiCaches(defaultCache, {
+      [DEFAULT_NETWORK_ID]: parsed as Record<string, Abi>,
+    })
   } catch {
     return defaultCache
   }
 }
 
-function saveAbiCache(cache: Record<string, Abi>) {
+function saveAbiCache(cache: AbiCacheByNetwork) {
   localStorage.setItem(ABI_CACHE_STORAGE_KEY, JSON.stringify(cache))
 }
 
@@ -168,7 +201,7 @@ function StatusPill({ state }: { state: AsyncState }) {
   return <span className={`pill pill-${state}`}>{label}</span>
 }
 
-function WalletControl() {
+function WalletControl({ network }: { network: Eip4337Network }) {
   const [walletModalOpen, setWalletModalOpen] = useState(false)
   const { connectors, connect, error: connectError, isPending } = useConnect()
   const { address, chainId, isConnected, connector } = useAccount()
@@ -178,7 +211,7 @@ function WalletControl() {
     isPending: switchPending,
     switchChain,
   } = useSwitchChain()
-  const isExpectedChain = chainId === confluxESpaceTestnet.id
+  const isExpectedChain = chainId === network.chain.id
 
   useEffect(() => {
     if (isConnected) setWalletModalOpen(false)
@@ -193,13 +226,13 @@ function WalletControl() {
             <code>{address}</code>
           </div>
           <span className={`pill ${isExpectedChain ? 'pill-success' : 'pill-error'}`}>
-            {isExpectedChain ? confluxESpaceTestnet.name : `链 ID ${chainId ?? '-'}`}
+            {isExpectedChain ? network.chain.name : `链 ID ${chainId ?? '-'}`}
           </span>
           {!isExpectedChain && (
             <button
               className="button secondary"
               disabled={switchPending}
-              onClick={() => switchChain({ chainId: confluxESpaceTestnet.id })}
+              onClick={() => switchChain({ chainId: network.chain.id })}
               type="button"
             >
               {switchPending ? '切换中...' : '切换网络'}
@@ -266,13 +299,13 @@ function WalletControl() {
   )
 }
 
-function GuideContent() {
+function GuideContent({ network }: { network: Eip4337Network }) {
   return (
     <div className="guide-content">
       <section>
         <h3>使用说明</h3>
         <ol className="guide-list">
-          <li>连接钱包，并确认钱包网络为 Conflux eSpace 测试网（链 ID 71）。</li>
+          <li>连接钱包，并确认钱包网络为 {network.chain.name}（链 ID {network.chain.id}）。</li>
           <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔 aa 交易的发起人是智能账户还是钱包账户自身。</li>
           <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
           <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas，需要提前转入。</li>
@@ -286,7 +319,10 @@ function GuideContent() {
         <h3>注意事项</h3>
         <ul className="guide-list">
           <li className="guide-danger">私钥模式只用于本地调试，请勿填写主网或真实资产账户私钥。</li>
-          <li>本 demo 固定面向 Conflux eSpace 测试网，钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要保持一致。</li>
+          <li>钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要与当前选择的网络保持一致。</li>
+          {network.id === 1030 && (
+            <li>主网暂不提供默认 Paymaster。开启赞助后请自行填写已支持当前 UserOperation 的 Paymaster。</li>
+          )}
           <li>Paymaster 赞助开启时，Paymaster 需要有余额并支持当前 UserOperation；否则会在发送阶段失败。</li>
           <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
           <li>如果钱包还没有授权给其他智能账户，尝试 7702 流程时需要先去 7702 demo 进行授权；或者 Owner 签名方式使用私钥，会在 aa 交易里带上授权信息同时完成授权和 UserOp 执行。</li>
@@ -303,9 +339,11 @@ function GuideContent() {
 function GuideModal({
   open,
   onClose,
+  network,
 }: {
   open: boolean
   onClose: () => void
+  network: Eip4337Network
 }) {
   if (!open) return null
 
@@ -326,13 +364,15 @@ function GuideModal({
             关闭
           </button>
         </div>
-        <GuideContent />
+        <GuideContent network={network} />
       </section>
     </div>
   )
 }
 
 function ConfigPanel({
+  networkId,
+  setNetworkId,
   bundlerUrl,
   setBundlerUrl,
   entryPoint,
@@ -350,6 +390,8 @@ function ConfigPanel({
   ownerPrivateKey,
   setOwnerPrivateKey,
 }: {
+  networkId: Eip4337NetworkId
+  setNetworkId: (value: Eip4337NetworkId) => void
   bundlerUrl: string
   setBundlerUrl: (value: string) => void
   entryPoint: string
@@ -372,6 +414,21 @@ function ConfigPanel({
       <div className="panel-heading">
         <h2>运行配置</h2>
       </div>
+      <label className="field">
+        <span>网络</span>
+        <select
+          value={networkId}
+          onChange={(event) =>
+            setNetworkId(Number(event.target.value) as Eip4337NetworkId)
+          }
+        >
+          {Object.values(EIP_4337_NETWORKS).map((network) => (
+            <option key={network.id} value={network.id}>
+              {network.chain.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="field">
         <span>Bundler RPC 地址</span>
         <input
@@ -454,7 +511,7 @@ function ConfigPanel({
   )
 }
 
-function ContractsPanel() {
+function ContractsPanel({ network }: { network: Eip4337Network }) {
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -463,19 +520,19 @@ function ContractsPanel() {
       <div className="stack">
         <div className="kv">
           <span>SimpleAccount Factory</span>
-          <code>{SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS}</code>
+          <code>{network.simpleAccountFactoryAddress}</code>
         </div>
         <div className="kv">
           <span>Simple7702 Impl</span>
-          <code>{SMART_ACCOUNT_IMPLEMENTATION}</code>
+          <code>{network.smartAccountImplementation}</code>
         </div>
         <div className="kv">
           <span>FooDapp</span>
-          <code>{FOO_DAPP_ADDRESS}</code>
+          <code>{network.defaultFooDappAddress ?? '主网未预设'}</code>
         </div>
         <div className="kv">
           <span>Paymaster</span>
-          <code>{DEFAULT_PAYMASTER_ADDRESS}</code>
+          <code>{network.defaultPaymasterAddress ?? '主网未配置'}</code>
         </div>
       </div>
     </section>
@@ -528,6 +585,7 @@ function DiagnosticsPanel({
 }
 
 function OperationPanel({
+  network,
   operationMode,
   setOperationMode,
   advancedContractAddress,
@@ -566,6 +624,7 @@ function OperationPanel({
   onBulkSend,
   onOpenGuide,
 }: {
+  network: Eip4337Network
   operationMode: OperationMode
   setOperationMode: (value: OperationMode) => void
   advancedContractAddress: string
@@ -862,7 +921,7 @@ function OperationPanel({
           </div>
           {result.reason && <div className="alert">{result.reason}</div>}
           {result.txHash && (
-            <a href={getExplorerTxUrl(result.txHash)} target="_blank" rel="noreferrer">
+            <a href={getExplorerTxUrl(result.txHash, network.chain)} target="_blank" rel="noreferrer">
               打开交易
             </a>
           )}
@@ -896,20 +955,29 @@ function OperationPanel({
 
 function App() {
   const { data: walletClient } = useWalletClient()
-  const [bundlerUrl, setBundlerUrl] = useState(DEFAULT_BUNDLER_URL)
-  const [entryPoint, setEntryPoint] = useState<string>(ENTRY_POINT_V08_ADDRESS)
+  const [networkId, setNetworkId] = useState<Eip4337NetworkId>(
+    DEFAULT_NETWORK_ID,
+  )
+  const network = getEip4337Network(networkId)
+  const [bundlerUrl, setBundlerUrl] = useState(network.bundlerUrl)
+  const [entryPoint, setEntryPoint] = useState<string>(network.entryPointAddress)
   const [nonceKey, setNonceKey] = useState('0')
-  const [paymaster, setPaymaster] = useState<string>(DEFAULT_PAYMASTER_ADDRESS)
-  const [usePaymaster, setUsePaymaster] = useState(true)
+  const [paymaster, setPaymaster] = useState<string>(
+    network.defaultPaymasterAddress ?? '',
+  )
+  const [usePaymaster, setUsePaymaster] = useState(
+    Boolean(network.defaultPaymasterAddress),
+  )
   const [accountMode, setAccountMode] =
     useState<AccountMode>('simpleAccount')
   const [ownerMode, setOwnerMode] = useState<OwnerMode>('wallet')
   const [ownerPrivateKey, setOwnerPrivateKey] = useState('')
   const [operationMode, setOperationMode] = useState<OperationMode>('single')
   const defaultFooFunctions = getWritableFunctions(FOO_DAPP_ABI)
-  const [abiCache, setAbiCache] = useState<Record<string, Abi>>(loadAbiCache)
+  const [abiCaches, setAbiCaches] = useState<AbiCacheByNetwork>(loadAbiCache)
+  const abiCache = abiCaches[networkId]
   const [advancedContractAddress, setAdvancedContractAddress] =
-    useState<string>(FOO_DAPP_ADDRESS)
+    useState<string>(network.defaultFooDappAddress ?? '')
   const [advancedFunctions, setAdvancedFunctions] = useState<
     WritableAbiFunction[]
   >(defaultFooFunctions)
@@ -945,6 +1013,22 @@ function App() {
   )
   const homeHref = getHomeHref()
 
+  const selectNetwork = (nextNetworkId: Eip4337NetworkId) => {
+    const nextNetwork = getEip4337Network(nextNetworkId)
+    setNetworkId(nextNetworkId)
+    setBundlerUrl(nextNetwork.bundlerUrl)
+    setEntryPoint(nextNetwork.entryPointAddress)
+    setPaymaster(nextNetwork.defaultPaymasterAddress ?? '')
+    setUsePaymaster(Boolean(nextNetwork.defaultPaymasterAddress))
+    setAdvancedContractAddress(nextNetwork.defaultFooDappAddress ?? '')
+    setAdvancedBatchCalls([])
+    setPrepared(null)
+    setResult(null)
+    setBulkResults([])
+    setError(null)
+    setStatus('idle')
+  }
+
   const canUseConfig =
     bundlerUrl.trim().length > 0 &&
     isAddress(entryPoint) &&
@@ -959,22 +1043,35 @@ function App() {
     (!usePaymaster || isAddress(paymaster))
 
   const refreshDiagnostics = useCallback(async () => {
-    const diagnostics = await loadDiagnostics(
+    const diagnostics = await loadDiagnostics({
       walletClient,
-      undefined,
+      chain: network.chain,
+      entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
+      simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
+      paymasterAddress:
+        usePaymaster && isAddress(paymaster) ? paymaster : undefined,
       accountMode,
       ownerMode,
-      ownerPrivateKey
+      ownerPrivateKey: ownerPrivateKey
         ? (ownerPrivateKey.startsWith('0x')
             ? ownerPrivateKey
             : `0x${ownerPrivateKey}`) as Hex
         : undefined,
-    )
+    })
     setOwnerCode(diagnostics.ownerCode)
     setSmartAccountAddress(diagnostics.smartAccountAddress)
     setSmartAccountBalance(diagnostics.smartAccountBalance)
     setBalances(diagnostics.balances)
-  }, [accountMode, ownerMode, ownerPrivateKey, walletClient])
+  }, [
+    accountMode,
+    entryPoint,
+    network,
+    ownerMode,
+    ownerPrivateKey,
+    paymaster,
+    usePaymaster,
+    walletClient,
+  ])
 
   useEffect(() => {
     void refreshDiagnostics()
@@ -1060,16 +1157,22 @@ function App() {
         throw new Error('请填写有效的目标合约地址。')
       }
 
-      const abi = await fetchContractAbi(advancedContractAddress)
+      const abi = await fetchContractAbi(
+        advancedContractAddress,
+        network.confluxScanApi,
+      )
       const writableFunctions = getWritableFunctions(abi)
       if (writableFunctions.length === 0) {
         throw new Error('该 ABI 中没有 nonpayable 或 payable 写方法。')
       }
 
-      setAbiCache((current) => {
+      setAbiCaches((current) => {
         const next = {
           ...current,
-          [getAddressCacheKey(advancedContractAddress)]: abi,
+          [networkId]: {
+            ...(current[networkId] ?? {}),
+            [getAddressCacheKey(advancedContractAddress)]: abi,
+          },
         }
         saveAbiCache(next)
         return next
@@ -1212,12 +1315,15 @@ function App() {
     return {
       walletClient,
       accountMode,
+      chain: network.chain,
       ownerMode,
       bundlerUrl,
-      entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
+      entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
+      simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
+      smartAccountImplementation: network.smartAccountImplementation,
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
-        ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
+        ? (paymaster as Address)
         : undefined,
       ownerPrivateKey: getOwnerPrivateKey(),
       calls,
@@ -1234,12 +1340,15 @@ function App() {
     return {
       walletClient: undefined,
       accountMode,
+      chain: network.chain,
       ownerMode: 'privateKey' as const,
       bundlerUrl,
-      entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
+      entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
+      simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
+      smartAccountImplementation: network.smartAccountImplementation,
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
-        ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
+        ? (paymaster as Address)
         : undefined,
       ownerPrivateKey: privateKey,
       calls,
@@ -1258,12 +1367,15 @@ function App() {
     return {
       walletClient,
       accountMode,
+      chain: network.chain,
       ownerMode: 'wallet' as const,
       bundlerUrl,
-      entryPointAddress: normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS),
+      entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
+      simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
+      smartAccountImplementation: network.smartAccountImplementation,
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
-        ? normalizeAddress(paymaster, DEFAULT_PAYMASTER_ADDRESS)
+        ? (paymaster as Address)
         : undefined,
       ownerPrivateKey: undefined,
       calls,
@@ -1322,7 +1434,10 @@ function App() {
         : undefined
 
       const baseNonceKey = parseNonceKey(nonceKey)
-      const entryPointAddress = normalizeAddress(entryPoint, ENTRY_POINT_V08_ADDRESS)
+      const entryPointAddress = normalizeAddress(
+        entryPoint,
+        network.entryPointAddress,
+      )
       const getBulkNonceKey = (index: number) => {
         const nextNonceKey = baseNonceKey + BigInt(index)
         if (nextNonceKey >= USER_OPERATION_NONCE_KEY_LIMIT) {
@@ -1381,6 +1496,7 @@ function App() {
           try {
             const result = await sendPreparedDemoUserOperation({
               bundlerUrl,
+              chain: network.chain,
               entryPointAddress,
               request: item.request,
             })
@@ -1424,15 +1540,17 @@ function App() {
       })
 
       setBulkResults(nextResults)
-      const diagnostics = bulkPrivateKey
-        ? await loadDiagnostics(
-            undefined,
-            undefined,
-            'simpleAccount',
-            'privateKey',
-            bulkPrivateKey,
-          )
-        : await loadDiagnostics(walletClient, undefined, accountMode, 'wallet')
+      const diagnostics = await loadDiagnostics({
+        walletClient: bulkPrivateKey ? undefined : walletClient,
+        chain: network.chain,
+        entryPointAddress,
+        simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
+        paymasterAddress:
+          usePaymaster && isAddress(paymaster) ? paymaster : undefined,
+        accountMode: bulkPrivateKey ? 'simpleAccount' : accountMode,
+        ownerMode: bulkPrivateKey ? 'privateKey' : 'wallet',
+        ownerPrivateKey: bulkPrivateKey,
+      })
       setOwnerCode(diagnostics.ownerCode)
       setSmartAccountAddress(diagnostics.smartAccountAddress)
       setSmartAccountBalance(diagnostics.smartAccountBalance)
@@ -1461,15 +1579,17 @@ function App() {
           </a>
           <div>
             <h1>EIP-4337 Demo</h1>
-            <p>Conflux eSpace 测试网账户抽象调试台</p>
+            <p>{network.chain.name} 账户抽象调试台</p>
           </div>
         </div>
-        <WalletControl />
+        <WalletControl network={network} />
       </header>
 
       <main className="layout">
         <aside className="sidebar">
           <ConfigPanel
+            networkId={networkId}
+            setNetworkId={selectNetwork}
             bundlerUrl={bundlerUrl}
             setBundlerUrl={setBundlerUrl}
             entryPoint={entryPoint}
@@ -1487,7 +1607,7 @@ function App() {
             ownerPrivateKey={ownerPrivateKey}
             setOwnerPrivateKey={setOwnerPrivateKey}
           />
-          <ContractsPanel />
+          <ContractsPanel network={network} />
           <DiagnosticsPanel
             ownerCode={ownerCode}
             smartAccountAddress={smartAccountAddress}
@@ -1499,6 +1619,7 @@ function App() {
 
         <div className="main-column">
           <OperationPanel
+            network={network}
             operationMode={operationMode}
             setOperationMode={setOperationMode}
             advancedContractAddress={advancedContractAddress}
@@ -1540,7 +1661,7 @@ function App() {
         </div>
       </main>
 
-      <GuideModal open={guideOpen} onClose={closeGuide} />
+      <GuideModal open={guideOpen} onClose={closeGuide} network={network} />
     </div>
   )
 }

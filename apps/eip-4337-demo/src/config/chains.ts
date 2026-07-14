@@ -16,6 +16,24 @@ export const confluxESpaceTestnet = defineChain({
   testnet: true,
 })
 
-export function getExplorerTxUrl(hash: string) {
-  return `${confluxESpaceTestnet.blockExplorers.default.url}/tx/${hash}`
+export const confluxESpaceMainnet = defineChain({
+  id: 1030,
+  name: 'Conflux eSpace Mainnet',
+  nativeCurrency: { name: 'CFX', symbol: 'CFX', decimals: 18 },
+  rpcUrls: {
+    default: { http: ['https://evm.confluxrpc.com'] },
+  },
+  blockExplorers: {
+    default: {
+      name: 'ConfluxScan',
+      url: 'https://evm.confluxscan.org',
+    },
+  },
+})
+
+export function getExplorerTxUrl(
+  hash: string,
+  chain: typeof confluxESpaceTestnet | typeof confluxESpaceMainnet,
+) {
+  return `${chain.blockExplorers.default.url}/tx/${hash}`
 }

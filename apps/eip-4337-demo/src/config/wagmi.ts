@@ -1,10 +1,10 @@
 import { createConfig, http } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import type { EIP1193Provider } from 'viem'
-import { confluxESpaceTestnet } from './chains'
+import { confluxESpaceMainnet, confluxESpaceTestnet } from './chains'
 
 export const wagmiConfig = createConfig({
-  chains: [confluxESpaceTestnet],
+  chains: [confluxESpaceTestnet, confluxESpaceMainnet],
   connectors: [
     injected({ target: 'metaMask' }),
     injected({
@@ -24,6 +24,9 @@ export const wagmiConfig = createConfig({
   transports: {
     [confluxESpaceTestnet.id]: http(
       confluxESpaceTestnet.rpcUrls.default.http[0],
+    ),
+    [confluxESpaceMainnet.id]: http(
+      confluxESpaceMainnet.rpcUrls.default.http[0],
     ),
   },
 })

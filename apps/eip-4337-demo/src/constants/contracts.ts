@@ -16,4 +16,9 @@ export const SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS =
   '0x13E9ed32155810FDbd067D4522C492D6f68E5944' as Address
 
 export const DEFAULT_BUNDLER_URL =
-  import.meta.env.VITE_BUNDLER_RPC_URL ?? 'https://aa-bundle.confluxrpc.org'
+  import.meta.env.VITE_BUNDLER_RPC_URL ?? 'https://bundler-testnet.confluxrpc.org'
+
+export const MAINNET_SMART_ACCOUNT_IMPLEMENTATION =
+  '0xF493e19B292855B467D7806b2CCF8c078518d43c' as Address
+
+export const MAINNET_BUNDLER_URL = 'https://bundler.confluxrpc.org'

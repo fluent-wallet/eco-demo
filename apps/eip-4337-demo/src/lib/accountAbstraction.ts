@@ -23,13 +23,6 @@ import {
 } from 'viem/account-abstraction'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { privateKeyToAccount, toAccount, type PrivateKeyAccount } from 'viem/accounts'
-import { confluxESpaceTestnet } from '../config/chains'
-import {
-  DEFAULT_PAYMASTER_ADDRESS,
-  ENTRY_POINT_V08_ADDRESS,
-  SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
-  SMART_ACCOUNT_IMPLEMENTATION,
-} from '../constants/contracts'
 import { applyUserOperationNonceOffset } from './userOperationNonce'
 import { normalizePrivateKey } from './privateKey'
 import type {
@@ -182,8 +175,11 @@ export type FooCallPreset = 'deposit' | 'transfer' | 'withdraw' | 'custom'
 
 export type DemoConfig = {
   accountMode: AccountMode
+  chain: Chain
   bundlerUrl: string
   entryPointAddress: Address
+  simpleAccountFactoryAddress: Address
+  smartAccountImplementation: Address
   nonceKey?: bigint
   nonceOffset?: number
   paymasterAddress?: Address
@@ -205,13 +201,13 @@ export type SendParams = PrepareParams
 
 export type SendSignedParams = Pick<
   DemoConfig,
-  'bundlerUrl' | 'entryPointAddress' | 'rpcUrl'
+  'bundlerUrl' | 'chain' | 'entryPointAddress' | 'rpcUrl'
 > & {
   request: SignedUserOperation
 }
 
-function getRpcUrl(rpcUrl?: string) {
-  return rpcUrl || confluxESpaceTestnet.rpcUrls.default.http[0]
+function getRpcUrl(chain: Chain, rpcUrl?: string) {
+  return rpcUrl || chain.rpcUrls.default.http[0]
 }
 
 export function normalizeAddress(value: string, fallback: Address): Address {
@@ -393,23 +389,29 @@ async function assertAuthorizationSigner(
   }
 }
 
-export async function ensureConfluxTestnet(walletClient: WalletClient) {
+export async function ensureConfluxChain(
+  walletClient: WalletClient,
+  chain: Chain,
+) {
   const chainId = await walletClient.getChainId()
-  if (chainId === confluxESpaceTestnet.id) return
+  if (chainId === chain.id) return
 
   try {
-    await walletClient.switchChain({ id: confluxESpaceTestnet.id })
+    await walletClient.switchChain({ id: chain.id })
   } catch {
-    await walletClient.addChain({ chain: confluxESpaceTestnet })
-    await walletClient.switchChain({ id: confluxESpaceTestnet.id })
+    await walletClient.addChain({ chain })
+    await walletClient.switchChain({ id: chain.id })
   }
 }
 
 async function createClients({
   accountMode,
+  chain,
   walletClient,
   bundlerUrl,
   entryPointAddress,
+  simpleAccountFactoryAddress,
+  smartAccountImplementation,
   nonceKey = DEFAULT_USER_OPERATION_NONCE_KEY,
   nonceOffset = 0,
   ownerMode,
@@ -423,12 +425,12 @@ async function createClients({
   }
 
   if (walletClient) {
-    await ensureConfluxTestnet(walletClient)
+    await ensureConfluxChain(walletClient, chain)
   }
 
   const publicClient = createPublicClient({
-    chain: confluxESpaceTestnet,
-    transport: http(getRpcUrl(rpcUrl)),
+    chain,
+    transport: http(getRpcUrl(chain, rpcUrl)),
   })
 
   const owner =
@@ -439,7 +441,7 @@ async function createClients({
             throw new Error('调试模式下需要填写 Owner 私钥。')
           })()
       : walletClient
-        ? createWalletOwner(walletClient, confluxESpaceTestnet)
+        ? createWalletOwner(walletClient, chain)
         : (() => {
             throw new Error('请先连接钱包。')
           })()
@@ -455,7 +457,7 @@ async function createClients({
     accountMode === 'simpleAccount'
       ? publicClient.readContract({
           abi: SIMPLE_ACCOUNT_FACTORY_ABI,
-          address: SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
+          address: simpleAccountFactoryAddress,
           functionName: 'getAddress',
           args: [owner.address, 0n],
         })
@@ -490,7 +492,7 @@ async function createClients({
             }
 
             return {
-              factory: SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
+              factory: simpleAccountFactoryAddress,
               factoryData: encodeFunctionData({
                 abi: SIMPLE_ACCOUNT_FACTORY_ABI,
                 functionName: 'createAccount',
@@ -537,7 +539,7 @@ async function createClients({
           },
           async signUserOperation(userOperation) {
             const typedData = getUserOperationTypedData({
-              chainId: confluxESpaceTestnet.id,
+              chainId: chain.id,
               entryPointAddress,
               userOperation: {
                 ...userOperation,
@@ -560,12 +562,12 @@ async function createClients({
             })
             return applyUserOperationNonceOffset(nonce, nonceOffset)
           },
-          implementation: SMART_ACCOUNT_IMPLEMENTATION,
+          implementation: smartAccountImplementation,
           owner: owner as PrivateKeyAccount,
         })
 
   const bundlerClient = createBundlerClient({
-    chain: confluxESpaceTestnet,
+    chain,
     client: publicClient,
     transport: http(bundlerUrl.trim()),
   })
@@ -579,8 +581,8 @@ async function createClients({
     !isAccountDeployed
       ? await (async () => {
           const signedAuthorization = await owner.signAuthorization?.({
-            address: SMART_ACCOUNT_IMPLEMENTATION,
-            chainId: confluxESpaceTestnet.id,
+            address: smartAccountImplementation,
+            chainId: chain.id,
             nonce: await publicClient.getTransactionCount({
               address: owner.address,
               blockTag: 'pending',
@@ -710,6 +712,7 @@ export async function sendDemoUserOperation(
 
 export async function sendPreparedDemoUserOperation({
   bundlerUrl,
+  chain,
   entryPointAddress,
   request,
   rpcUrl,
@@ -719,11 +722,11 @@ export async function sendPreparedDemoUserOperation({
   }
 
   const publicClient = createPublicClient({
-    chain: confluxESpaceTestnet,
-    transport: http(getRpcUrl(rpcUrl)),
+    chain,
+    transport: http(getRpcUrl(chain, rpcUrl)),
   })
   const bundlerClient = createBundlerClient({
-    chain: confluxESpaceTestnet,
+    chain,
     client: publicClient,
     transport: http(bundlerUrl.trim()),
   })
@@ -755,21 +758,35 @@ export async function sendPreparedDemoUserOperation({
   }
 }
 
-export async function loadDiagnostics(
-  walletClient?: WalletClient,
-  rpcUrl?: string,
-  accountMode: AccountMode = 'simpleAccount',
-  ownerMode: OwnerMode = 'wallet',
-  ownerPrivateKey?: Hex,
-): Promise<{
+export async function loadDiagnostics({
+  walletClient,
+  chain,
+  entryPointAddress,
+  simpleAccountFactoryAddress,
+  paymasterAddress,
+  rpcUrl,
+  accountMode = 'simpleAccount',
+  ownerMode = 'wallet',
+  ownerPrivateKey,
+}: {
+  walletClient?: WalletClient
+  chain: Chain
+  entryPointAddress: Address
+  simpleAccountFactoryAddress: Address
+  paymasterAddress?: Address
+  rpcUrl?: string
+  accountMode?: AccountMode
+  ownerMode?: OwnerMode
+  ownerPrivateKey?: Hex
+}): Promise<{
   ownerCode: Hex | undefined
   smartAccountAddress?: Address
   smartAccountBalance: bigint | null
   balances: PaymasterBalance[]
 }> {
   const publicClient = createPublicClient({
-    chain: confluxESpaceTestnet,
-    transport: http(getRpcUrl(rpcUrl)),
+    chain,
+    transport: http(getRpcUrl(chain, rpcUrl)),
   })
   const owner =
     ownerMode === 'privateKey' && ownerPrivateKey
@@ -780,7 +797,7 @@ export async function loadDiagnostics(
       ? await publicClient
           .readContract({
             abi: SIMPLE_ACCOUNT_FACTORY_ABI,
-            address: SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
+            address: simpleAccountFactoryAddress,
             functionName: 'getAddress',
             args: [owner, 0n],
           })
@@ -795,27 +812,31 @@ export async function loadDiagnostics(
     smartAccountAddress
       ? publicClient.getBalance({ address: smartAccountAddress }).catch(() => null)
       : Promise.resolve(null),
-    publicClient
-      .readContract({
-        abi: ENTRY_POINT_BALANCE_ABI,
-        address: ENTRY_POINT_V08_ADDRESS,
-        functionName: 'balanceOf',
-        args: [DEFAULT_PAYMASTER_ADDRESS],
-      })
-      .catch(() => null),
+    paymasterAddress
+      ? publicClient
+          .readContract({
+            abi: ENTRY_POINT_BALANCE_ABI,
+            address: entryPointAddress,
+            functionName: 'balanceOf',
+            args: [paymasterAddress],
+          })
+          .catch(() => null)
+      : Promise.resolve(null),
     ])
 
   return {
     ownerCode: ownerCode ?? '0x',
     smartAccountAddress,
     smartAccountBalance,
-    balances: [
-      {
-        label: 'Paymaster',
-        address: DEFAULT_PAYMASTER_ADDRESS,
-        balance: paymasterBalance,
-      },
-    ],
+    balances: paymasterAddress
+      ? [
+          {
+            label: 'Paymaster',
+            address: paymasterAddress,
+            balance: paymasterBalance,
+          },
+        ]
+      : [],
   }
 }
 
