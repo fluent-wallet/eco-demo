@@ -55,7 +55,7 @@ The repo has two layers:
 - Custom verified contracts require ConfluxScan ABI query for the selected network before method calls are enabled.
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
 - ABI cache is partitioned by network, and ABI lookups use the selected network's ConfluxScan API so a Testnet ABI is never reused on Mainnet.
-- Runtime network selection resets Bundler, EntryPoint, Paymaster defaults, and the default ABI target. Mainnet uses no default Paymaster and begins with sponsorship disabled.
+- Runtime network selection resets Bundler, EntryPoint, Paymaster defaults, and the default ABI target. Mainnet defaults to Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`, so sponsorship begins enabled.
 - Lightweight fixtures live in `apps/eip-4337-demo/scripts/*.fixtures.mjs`. They use Node 22 type stripping to import selected `.ts` modules and avoid adding a test framework.
 
 ### `apps/eip-7702-demo`

@@ -46,6 +46,7 @@ export const EIP_4337_NETWORKS: Record<Eip4337NetworkId, Eip4337Network> = {
     entryPointAddress: ENTRY_POINT_V08_ADDRESS,
     simpleAccountFactoryAddress: SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS,
     smartAccountImplementation: MAINNET_SMART_ACCOUNT_IMPLEMENTATION,
+    defaultPaymasterAddress: '0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b',
     confluxScanApi: 'https://evmapi.confluxscan.org/api',
   },
 }

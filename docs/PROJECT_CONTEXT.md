@@ -72,7 +72,7 @@ eco-demo/
 - Validate 4337 ABI-driven call builder against more real-world verified contracts, especially nested tuples/arrays and overloaded methods from ConfluxScan.
 - Decide root README language policy: Chinese, English, or bilingual.
 - Add Pages smoke checks after `pnpm build` if deployment regressions become common.
-- Validate both 4337 account modes with funded Mainnet accounts before relying on the production path; mainnet Paymaster integration remains intentionally unconfigured.
+- Validate both 4337 account modes with funded Mainnet accounts before relying on the production path, including the configured mainnet Paymaster sponsorship path.
 
 ## Key Decisions
 
@@ -84,7 +84,7 @@ eco-demo/
 - 4337 connected wallet status shows the full address, connector name, and chain status.
 - 4337 supports Conflux eSpace Testnet (chain ID `71`) and Mainnet (chain ID `1030`). Testnet is the default, with Bundler `https://bundler-testnet.confluxrpc.org`; Mainnet uses `https://bundler.confluxrpc.org`.
 - Both networks use EntryPoint v0.8 `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`. Mainnet Simple7702 uses implementation `0xF493e19B292855B467D7806b2CCF8c078518d43c`.
-- Mainnet has no default Paymaster: sponsorship starts disabled and enabling it leaves the Paymaster field empty for explicit input. Sepolia remains unsupported.
+- Mainnet defaults to Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`, so sponsorship starts enabled. Sepolia remains unsupported.
 - 4337 instructions stay in a modal to keep the workbench compact.
 - 4337 operation UI is a single advanced-first call builder.
 - Testnet defaults to FooDapp address and built-in FooDapp ABI; Mainnet starts without a preset target contract.

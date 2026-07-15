@@ -320,9 +320,6 @@ function GuideContent({ network }: { network: Eip4337Network }) {
         <ul className="guide-list">
           <li className="guide-danger">私钥模式只用于本地调试，请勿填写主网或真实资产账户私钥。</li>
           <li>钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要与当前选择的网络保持一致。</li>
-          {network.id === 1030 && (
-            <li>主网暂不提供默认 Paymaster。开启赞助后请自行填写已支持当前 UserOperation 的 Paymaster。</li>
-          )}
           <li>Paymaster 赞助开启时，Paymaster 需要有余额并支持当前 UserOperation；否则会在发送阶段失败。</li>
           <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
           <li>如果钱包还没有授权给其他智能账户，尝试 7702 流程时需要先去 7702 demo 进行授权；或者 Owner 签名方式使用私钥，会在 aa 交易里带上授权信息同时完成授权和 UserOp 执行。</li>

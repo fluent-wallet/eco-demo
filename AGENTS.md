@@ -33,7 +33,7 @@ Before changing code, read:
 
 - Root shell and Pages build are wired.
 - EIP-4337 demo includes topbar wallet control, multi-wallet connect modal, full address display, mainnet/testnet status and switching, runtime config, contracts, diagnostics, guide modal, ABI-driven write calls, CFX transfers, prepare/send UserOperation, executeBatch call lists, and bulk UserOps.
-- EIP-4337 defaults to Conflux eSpace Testnet (chain ID `71`, `https://bundler-testnet.confluxrpc.org`); it also supports Conflux eSpace Mainnet (chain ID `1030`, `https://bundler.confluxrpc.org`) with the mainnet v0.8 EntryPoint and Simple7702 implementation. Mainnet has no default Paymaster and starts with sponsorship disabled.
+- EIP-4337 defaults to Conflux eSpace Testnet (chain ID `71`, `https://bundler-testnet.confluxrpc.org`); it also supports Conflux eSpace Mainnet (chain ID `1030`, `https://bundler.confluxrpc.org`) with the mainnet v0.8 EntryPoint, Simple7702 implementation, and default Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`. Mainnet sponsorship starts enabled.
 - EIP-4337 ABI builder defaults to FooDapp address + built-in ABI. Other verified contract ABIs are fetched from ConfluxScan and cached by lowercased address in `localStorage` key `eco-demo:eip-4337-abi-cache`; uncached addresses must query ABI before contract method calls are enabled.
 - ABI input parsing now validates JSON arrays, tuples, tuple fields, addresses, booleans, signed/unsigned integers, bytes/fixed bytes, payable CFX value, and transfer amounts with user-facing Chinese errors.
 - Single `execute` and batch `executeBatch` share the same call-building path; batch mode sends only calls explicitly added to the list, while single CFX transfer bypasses ABI.

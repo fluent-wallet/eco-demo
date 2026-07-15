@@ -17,4 +17,4 @@ npm install
 npm run dev
 ```
 
-The app defaults to Testnet (chain `71`) with Bundler `https://bundler-testnet.confluxrpc.org`. It can switch to Mainnet (chain `1030`) with Bundler `https://bundler.confluxrpc.org`, EntryPoint v0.8 `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`, and Simple7702 implementation `0xF493e19B292855B467D7806b2CCF8c078518d43c`. Mainnet sponsorship is disabled by default and does not prefill a Paymaster.
+The app defaults to Testnet (chain `71`) with Bundler `https://bundler-testnet.confluxrpc.org`. It can switch to Mainnet (chain `1030`) with Bundler `https://bundler.confluxrpc.org`, EntryPoint v0.8 `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`, Simple7702 implementation `0xF493e19B292855B467D7806b2CCF8c078518d43c`, and default Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`.

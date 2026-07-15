@@ -29,7 +29,7 @@ pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 ## Current State
 
 - 4337 demo has a compact topbar wallet control, multi-wallet connect modal, full connected address display, and switch-to-selected-network action for Conflux eSpace Testnet or Mainnet.
-- 4337 defaults to Testnet (chain ID `71`, `https://bundler-testnet.confluxrpc.org`) and supports Mainnet (chain ID `1030`, `https://bundler.confluxrpc.org`). Mainnet uses EntryPoint v0.8 and `0xF493e19B292855B467D7806b2CCF8c078518d43c` as the Simple7702 implementation; Paymaster is off and empty by default.
+- 4337 defaults to Testnet (chain ID `71`, `https://bundler-testnet.confluxrpc.org`) and supports Mainnet (chain ID `1030`, `https://bundler.confluxrpc.org`). Mainnet uses EntryPoint v0.8, `0xF493e19B292855B467D7806b2CCF8c078518d43c` as the Simple7702 implementation, and `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b` as the default Paymaster; sponsorship starts enabled.
 - 4337 side panels now start with runtime config; wallet no longer occupies a large sidebar card.
 - 4337 operation builder is ABI-driven. Testnet defaults to FooDapp + built-in ABI; queried ConfluxScan ABIs are cached by network and lowercased address in `localStorage` under `eco-demo:eip-4337-abi-cache`.
 - 4337 ABI call inputs validate arrays, tuples, tuple fields, addresses, booleans, integers, bytes/fixed bytes, payable value, and CFX transfers. Single and batch modes both build `{ to, data, value }[]`; batch mode only uses calls added to the list.
