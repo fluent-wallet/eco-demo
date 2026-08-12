@@ -9,3 +9,14 @@ export function needsSmartAccountAuthorization(
     !isAddressEqual(currentDelegation, intendedImplementation)
   )
 }
+
+export function shouldAttachSmartAccountAuthorization(
+  currentDelegation: Address | undefined,
+  intendedImplementation: Address,
+  forceUpgrade: boolean,
+) {
+  if (currentDelegation === undefined) return true
+  return forceUpgrade
+    ? needsSmartAccountAuthorization(currentDelegation, intendedImplementation)
+    : false
+}

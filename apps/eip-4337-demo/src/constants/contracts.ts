@@ -1,7 +1,7 @@
 import type { Address } from 'viem'
 
 export const SMART_ACCOUNT_IMPLEMENTATION =
-  '0xD165320665C36b2F8F2BB2EfA5621db7eA012028' as Address
+  '0x8F5d8d7f3467Dd2e34186E232D8b5a5f35462949' as Address
 
 export const DEFAULT_PAYMASTER_ADDRESS =
   '0x2dbB152f7D3F673eea1459FE39EcebdF29106652' as Address

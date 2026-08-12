@@ -6,7 +6,14 @@ import {
   useSwitchChain,
   useWalletClient,
 } from 'wagmi'
-import { isAddress, parseEther, type Abi, type Address, type Hex } from 'viem'
+import {
+  isAddress,
+  parseEther,
+  type Abi,
+  type Address,
+  type Hex,
+} from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { getExplorerTxUrl } from './config/chains'
 import {
   EIP_4337_NETWORKS,
@@ -26,6 +33,7 @@ import {
 import {
   explainUserOperationError,
   formatCfx,
+  getSimple7702Delegation,
   loadDiagnostics,
   normalizeAddress,
   prepareDemoUserOperation,
@@ -36,6 +44,7 @@ import {
 } from './lib/accountAbstraction'
 import { parseNonceKey } from './lib/nonceKey'
 import { normalizePrivateKey } from './lib/privateKey'
+import { needsSmartAccountAuthorization } from './lib/smartAccountAuthorization'
 import type {
   AccountMode,
   OwnerMode,
@@ -308,6 +317,7 @@ function GuideContent({ network }: { network: Eip4337Network }) {
           <li>连接钱包，并确认钱包网络为 {network.chain.name}（链 ID {network.chain.id}）。</li>
           <li>选择账户模式：SimpleAccount 用于标准 4337 流程，Simple7702 用于 7702 授权账户流程，区别在于这笔 aa 交易的发起人是智能账户还是钱包账户自身。</li>
           <li>选择 Owner 签名方式。日常测试建议使用已连接钱包；调试批量或异常场景时再使用私钥模式。</li>
+          <li>Simple7702 可以自定义实现地址。未勾选“强制升级 smart account”时，已有 delegation 的 EOA 会继续使用当前 smart account；勾选后如果当前实现不同，会自动切换为私钥模式，并在 UserOperation 中携带新授权。</li>
           <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas，需要提前转入。</li>
           <li>在右侧用 ABI 选择写方法并填写参数；未缓存的合约地址需要先点击“查询 ABI”。</li>
           <li>单笔模式会直接使用当前调用；批量模式需要先把当前调用或 CFX 转账加入调用列表。</li>
@@ -384,6 +394,8 @@ function ConfigPanel({
   setAccountMode,
   smartAccountImplementation,
   setSmartAccountImplementation,
+  forceSmartAccountUpgrade,
+  setForceSmartAccountUpgrade,
   ownerMode,
   setOwnerMode,
   ownerPrivateKey,
@@ -405,6 +417,8 @@ function ConfigPanel({
   setAccountMode: (value: AccountMode) => void
   smartAccountImplementation: string
   setSmartAccountImplementation: (value: string) => void
+  forceSmartAccountUpgrade: boolean
+  setForceSmartAccountUpgrade: (value: boolean) => void
   ownerMode: OwnerMode
   setOwnerMode: (value: OwnerMode) => void
   ownerPrivateKey: string
@@ -486,16 +500,28 @@ function ConfigPanel({
         </select>
       </label>
       {accountMode === 'simple7702' && (
-        <label className="field">
-          <span>Simple7702 Smart Account 实现地址</span>
-          <input
-            value={smartAccountImplementation}
-            onChange={(event) =>
-              setSmartAccountImplementation(event.target.value)
-            }
-            placeholder="默认使用当前网络配置（测试网为 2028 合约）"
-          />
-        </label>
+        <>
+          <label className="field">
+            <span>Simple7702 Smart Account 实现地址</span>
+            <input
+              value={smartAccountImplementation}
+              onChange={(event) =>
+                setSmartAccountImplementation(event.target.value)
+              }
+              placeholder="默认使用当前网络配置（测试网为 0x8F5d...2949）"
+            />
+          </label>
+          <label className="check-option fit-option">
+            <input
+              type="checkbox"
+              checked={forceSmartAccountUpgrade}
+              onChange={(event) =>
+                setForceSmartAccountUpgrade(event.target.checked)
+              }
+            />
+            <span>强制升级 smart account</span>
+          </label>
+        </>
       )}
       <label className="field">
         <span>Owner 签名方式</span>
@@ -982,6 +1008,8 @@ function App() {
   const [entryPoint, setEntryPoint] = useState<string>(network.entryPointAddress)
   const [smartAccountImplementation, setSmartAccountImplementation] =
     useState<string>(network.smartAccountImplementation)
+  const [forceSmartAccountUpgrade, setForceSmartAccountUpgrade] =
+    useState(false)
   const [nonceKey, setNonceKey] = useState('0')
   const [paymaster, setPaymaster] = useState<string>(
     network.defaultPaymasterAddress ?? '',
@@ -1040,6 +1068,7 @@ function App() {
     setBundlerUrl(nextNetwork.bundlerUrl)
     setEntryPoint(nextNetwork.entryPointAddress)
     setSmartAccountImplementation(nextNetwork.smartAccountImplementation)
+    setForceSmartAccountUpgrade(false)
     setPaymaster(nextNetwork.defaultPaymasterAddress ?? '')
     setUsePaymaster(Boolean(nextNetwork.defaultPaymasterAddress))
     setAdvancedContractAddress(nextNetwork.defaultFooDappAddress ?? '')
@@ -1150,6 +1179,101 @@ function App() {
     ownerPrivateKey
       ? normalizePrivateKey(ownerPrivateKey, 'Owner 私钥')
       : undefined
+
+  const getOwnerAddress = (mode: OwnerMode) => {
+    if (mode === 'privateKey') {
+      if (!ownerPrivateKey.trim()) return undefined
+      return privateKeyToAccount(getOwnerPrivateKey()!).address
+    }
+
+    return walletClient?.account?.address
+  }
+
+  const getIntendedSmartAccountImplementation = () =>
+    normalizeAddress(
+      smartAccountImplementation,
+      network.smartAccountImplementation,
+    )
+
+  const resolveOwnerModeForUpgrade = async (): Promise<OwnerMode> => {
+    if (
+      accountMode !== 'simple7702' ||
+      !forceSmartAccountUpgrade ||
+      !isAddress(smartAccountImplementation)
+    ) {
+      return ownerMode
+    }
+
+    const ownerAddress = getOwnerAddress(ownerMode)
+    if (!ownerAddress) return ownerMode
+
+    const currentDelegation = await getSimple7702Delegation({
+      chain: network.chain,
+      owner: ownerAddress,
+    })
+    if (
+      !needsSmartAccountAuthorization(
+        currentDelegation,
+        getIntendedSmartAccountImplementation(),
+      )
+    ) {
+      return ownerMode
+    }
+
+    if (ownerMode === 'wallet') {
+      setOwnerMode('privateKey')
+      return 'privateKey'
+    }
+
+    return ownerMode
+  }
+
+  useEffect(() => {
+    if (
+      accountMode !== 'simple7702' ||
+      !forceSmartAccountUpgrade ||
+      ownerMode !== 'wallet' ||
+      !walletClient?.account?.address ||
+      !isAddress(smartAccountImplementation)
+    ) {
+      return
+    }
+
+    let cancelled = false
+    void getSimple7702Delegation({
+      chain: network.chain,
+      owner: walletClient.account.address,
+    })
+      .then((currentDelegation) => {
+        if (
+          !cancelled &&
+          needsSmartAccountAuthorization(
+            currentDelegation,
+            normalizeAddress(
+              smartAccountImplementation,
+              network.smartAccountImplementation,
+            ),
+          )
+        ) {
+          setOwnerMode('privateKey')
+        }
+      })
+      .catch(() => {
+        // The send/prepare path performs the authoritative check and reports RPC errors.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    accountMode,
+    forceSmartAccountUpgrade,
+    network.chain,
+    network.smartAccountImplementation,
+    ownerMode,
+    smartAccountImplementation,
+    walletClient,
+  ])
 
   const setAdvancedArg = (index: number, value: string) => {
     setAdvancedArgs((current) => {
@@ -1330,18 +1454,23 @@ function App() {
     }
     const userOperationNonceKey = parseNonceKey(nonceKey)
     const calls = buildCalls()
-    if (ownerMode === 'wallet' && !walletClient) {
+    const effectiveOwnerMode = await resolveOwnerModeForUpgrade()
+    if (effectiveOwnerMode === 'wallet' && !walletClient) {
       throw new Error('请先连接钱包。')
     }
-    if (ownerMode === 'privateKey' && !ownerPrivateKey.trim()) {
-      throw new Error('调试模式下需要填写 Owner 私钥。')
+    if (effectiveOwnerMode === 'privateKey' && !ownerPrivateKey.trim()) {
+      throw new Error(
+        forceSmartAccountUpgrade && accountMode === 'simple7702'
+          ? '当前 EOA 与自定义 Smart Account 不同，已自动切换为私钥模式，请填写对应的 Owner 私钥后重试。'
+          : '调试模式下需要填写 Owner 私钥。',
+      )
     }
 
     return {
       walletClient,
       accountMode,
       chain: network.chain,
-      ownerMode,
+      ownerMode: effectiveOwnerMode,
       bundlerUrl,
       entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
       simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
@@ -1349,11 +1478,13 @@ function App() {
         smartAccountImplementation,
         network.smartAccountImplementation,
       ),
+      forceSmartAccountUpgrade,
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? (paymaster as Address)
         : undefined,
-      ownerPrivateKey: getOwnerPrivateKey(),
+      ownerPrivateKey:
+        effectiveOwnerMode === 'privateKey' ? getOwnerPrivateKey() : undefined,
       calls,
     }
   }
@@ -1377,6 +1508,7 @@ function App() {
         smartAccountImplementation,
         network.smartAccountImplementation,
       ),
+      forceSmartAccountUpgrade,
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? (paymaster as Address)
@@ -1407,6 +1539,7 @@ function App() {
         smartAccountImplementation,
         network.smartAccountImplementation,
       ),
+      forceSmartAccountUpgrade,
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? (paymaster as Address)
@@ -1640,6 +1773,8 @@ function App() {
             setAccountMode={setAccountMode}
             smartAccountImplementation={smartAccountImplementation}
             setSmartAccountImplementation={setSmartAccountImplementation}
+            forceSmartAccountUpgrade={forceSmartAccountUpgrade}
+            setForceSmartAccountUpgrade={setForceSmartAccountUpgrade}
             ownerMode={ownerMode}
             setOwnerMode={setOwnerMode}
             ownerPrivateKey={ownerPrivateKey}

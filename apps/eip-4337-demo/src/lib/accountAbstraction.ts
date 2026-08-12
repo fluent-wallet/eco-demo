@@ -25,7 +25,7 @@ import { recoverAuthorizationAddress } from 'viem/utils'
 import { privateKeyToAccount, toAccount, type PrivateKeyAccount } from 'viem/accounts'
 import { normalizePrivateKey } from './privateKey'
 import { assertPaymasterSponsorship } from './paymasterSponsorship'
-import { needsSmartAccountAuthorization } from './smartAccountAuthorization'
+import { shouldAttachSmartAccountAuthorization } from './smartAccountAuthorization'
 import { applyUserOperationNonceOffset } from './userOperationNonce'
 import type {
   AccountMode,
@@ -186,6 +186,7 @@ export type DemoConfig = {
   entryPointAddress: Address
   simpleAccountFactoryAddress: Address
   smartAccountImplementation: Address
+  forceSmartAccountUpgrade?: boolean
   nonceKey?: bigint
   nonceOffset?: number
   paymasterAddress?: Address
@@ -218,6 +219,22 @@ function getRpcUrl(chain: Chain, rpcUrl?: string) {
 
 export function normalizeAddress(value: string, fallback: Address): Address {
   return isAddress(value) ? value : fallback
+}
+
+export async function getSimple7702Delegation({
+  chain,
+  owner,
+  rpcUrl,
+}: {
+  chain: Chain
+  owner: Address
+  rpcUrl?: string
+}) {
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(getRpcUrl(chain, rpcUrl)),
+  })
+  return publicClient.getDelegation({ address: owner })
 }
 
 export function normalizeHex(value: string): Hex {
@@ -418,6 +435,7 @@ async function createClients({
   entryPointAddress,
   simpleAccountFactoryAddress,
   smartAccountImplementation,
+  forceSmartAccountUpgrade = false,
   nonceKey = DEFAULT_USER_OPERATION_NONCE_KEY,
   nonceOffset = 0,
   ownerMode,
@@ -581,7 +599,11 @@ async function createClients({
   const accountAddress = account.address
   const currentDelegation =
     accountMode === 'simple7702'
-      ? await publicClient.getDelegation({ address: accountAddress })
+      ? await getSimple7702Delegation({
+          chain,
+          owner: accountAddress,
+          rpcUrl,
+        })
       : undefined
   const accountCode =
     accountMode === 'simpleAccount'
@@ -593,12 +615,11 @@ async function createClients({
       : Boolean(accountCode && accountCode !== '0x')
   const needsAuthorization =
     accountMode === 'simple7702' &&
-    (ownerMode === 'privateKey'
-      ? needsSmartAccountAuthorization(
-          currentDelegation,
-          smartAccountImplementation,
-        )
-      : !isAccountDeployed)
+    shouldAttachSmartAccountAuthorization(
+      currentDelegation,
+      smartAccountImplementation,
+      forceSmartAccountUpgrade,
+    )
   const authorization = needsAuthorization
     ? await (async () => {
         const authorizationRequest = {
