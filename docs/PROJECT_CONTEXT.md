@@ -50,6 +50,9 @@ eco-demo/
   - bulk UserOps that always send through connected wallet A and optionally also send through bulk private-key owner B when that field is non-empty
   - plain-text Owner and bulk Owner private-key inputs for test workflow visibility
   - private-key validation before UserOperation prepare/send
+  - editable Simple7702 implementation address, with the testnet default remaining the `...2028` contract
+  - private-key Simple7702 flows that attach a fresh authorization when the EOA delegation is missing or targets another implementation
+  - Paymaster `canSponsor` pre-check after gas preparation and before UserOperation signing, with rejection reasons shown and legacy Paymasters treated as supported
   - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, private-key validation, and nonce offset calculation
 - 7702 demo:
   - network selector
@@ -98,6 +101,7 @@ eco-demo/
 - Both SimpleAccount and Simple7702 use `EntryPoint.getNonce(sender, nonceKey)`. Bulk sends assign per-item nonce keys starting from the configured key, sign all prepared requests first, then broadcast the signed UserOps in parallel so concurrent UserOps do not collide on the same nonce sequence.
 - Bulk UserOps require connected wallet A. The bulk Owner private key is optional and only validated when non-empty; with a key present, the UI sends both wallet A and private-key owner B batches, and with no key it sends only wallet A.
 - Private-key flows are test/debug only and must remain visibly warned. 4337 Owner private-key inputs and 7702 private-key inputs are intentionally not masked, but execution paths must reject values that are not 32-byte hex private keys in the secp256k1 range.
+- The 4337 Simple7702 implementation is editable at runtime; the testnet default is `0xD165320665C36b2F8F2BB2EfA5621db7eA012028`.
 - 7702 private-key inputs are intentionally not masked. Keep the auto-`0x` normalization and private-key validation in `App.tsx` aligned across tx sender input, EOA authorization rows, delegate sending, and nonce lookup.
 
 ## Commands
@@ -111,6 +115,8 @@ pnpm --filter @eco-demo/eip-4337-demo test:contract-calls
 pnpm --filter @eco-demo/eip-4337-demo test:conflux-scan-abi
 pnpm --filter @eco-demo/eip-4337-demo test:nonce-key
 pnpm --filter @eco-demo/eip-4337-demo test:private-key
+pnpm --filter @eco-demo/eip-4337-demo test:paymaster-sponsorship
+pnpm --filter @eco-demo/eip-4337-demo test:smart-account-authorization
 pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 ```
 

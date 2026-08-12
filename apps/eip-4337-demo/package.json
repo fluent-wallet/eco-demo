@@ -10,7 +10,9 @@
     "test:conflux-scan-abi": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/confluxScanAbi.fixtures.mjs",
     "test:contract-calls": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/contractCalls.fixtures.mjs",
     "test:nonce-key": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/nonceKey.fixtures.mjs",
+    "test:paymaster-sponsorship": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/paymasterSponsorship.fixtures.mjs",
     "test:private-key": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/privateKey.fixtures.mjs",
+    "test:smart-account-authorization": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/smartAccountAuthorization.fixtures.mjs",
     "test:user-operation-nonce": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/userOperationNonce.fixtures.mjs",
     "preview": "vite preview"
   },

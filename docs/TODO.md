@@ -24,6 +24,9 @@
 - 7702 private-key inputs are intentionally plain text and auto-prefix `0x` for non-empty input.
 - 4337 contract method calls require cached/queryable ABI; raw calldata mode was removed from the primary UI.
 - 4337 Simple7702 wallet flow depends on wallet support for EIP-7702 authorization signing.
+- 4337 Simple7702 implementation can be customized at runtime; the testnet default remains the `...2028` contract.
+- 4337 private-key Simple7702 flows attach a new authorization when the EOA has no delegation or delegates to a different implementation.
+- 4337 Paymaster sponsorship now performs the optional `canSponsor` pre-check after gas preparation and before signing.
 - 4337 supports only Conflux eSpace Testnet and Mainnet. Mainnet defaults to Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`; users can still override or disable sponsorship at runtime.
 - 4337 bulk UserOps avoid same-sequence nonce conflicts by using per-item nonce keys and broadcasting already signed requests in parallel. Bundler packing behavior for multiple UserOps is still RPC-implementation dependent.
 - Demo home links are already path-aware; preserve local-shell and GitHub Pages subpath behavior.

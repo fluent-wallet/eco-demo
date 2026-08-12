@@ -320,7 +320,7 @@ function GuideContent({ network }: { network: Eip4337Network }) {
         <ul className="guide-list">
           <li className="guide-danger">私钥模式只用于本地调试，请勿填写主网或真实资产账户私钥。</li>
           <li>钱包链 ID、Bundler、EntryPoint 和 Paymaster 需要与当前选择的网络保持一致。</li>
-          <li>Paymaster 赞助开启时，Paymaster 需要有余额并支持当前 UserOperation；否则会在发送阶段失败。</li>
+          <li>Paymaster 赞助开启时，签名前会调用可选的 canSponsor 接口检查当前 UserOperation；返回拒绝原因会直接提示，未实现该接口的旧 Paymaster 按支持代付处理。</li>
           <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
           <li>如果钱包还没有授权给其他智能账户，尝试 7702 流程时需要先去 7702 demo 进行授权；或者 Owner 签名方式使用私钥，会在 aa 交易里带上授权信息同时完成授权和 UserOp 执行。</li>
           <li>“准备 UserOperation”只构造和签名请求，不会上链；“发送 UserOperation”才会提交到 Bundler。</li>
@@ -382,6 +382,8 @@ function ConfigPanel({
   setUsePaymaster,
   accountMode,
   setAccountMode,
+  smartAccountImplementation,
+  setSmartAccountImplementation,
   ownerMode,
   setOwnerMode,
   ownerPrivateKey,
@@ -401,6 +403,8 @@ function ConfigPanel({
   setUsePaymaster: (value: boolean) => void
   accountMode: AccountMode
   setAccountMode: (value: AccountMode) => void
+  smartAccountImplementation: string
+  setSmartAccountImplementation: (value: string) => void
   ownerMode: OwnerMode
   setOwnerMode: (value: OwnerMode) => void
   ownerPrivateKey: string
@@ -481,6 +485,18 @@ function ConfigPanel({
           <option value="simple7702">Simple7702 账户</option>
         </select>
       </label>
+      {accountMode === 'simple7702' && (
+        <label className="field">
+          <span>Simple7702 Smart Account 实现地址</span>
+          <input
+            value={smartAccountImplementation}
+            onChange={(event) =>
+              setSmartAccountImplementation(event.target.value)
+            }
+            placeholder="默认使用当前网络配置（测试网为 2028 合约）"
+          />
+        </label>
+      )}
       <label className="field">
         <span>Owner 签名方式</span>
         <select
@@ -508,7 +524,13 @@ function ConfigPanel({
   )
 }
 
-function ContractsPanel({ network }: { network: Eip4337Network }) {
+function ContractsPanel({
+  network,
+  smartAccountImplementation,
+}: {
+  network: Eip4337Network
+  smartAccountImplementation: string
+}) {
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -521,7 +543,7 @@ function ContractsPanel({ network }: { network: Eip4337Network }) {
         </div>
         <div className="kv">
           <span>Simple7702 Impl</span>
-          <code>{network.smartAccountImplementation}</code>
+          <code>{smartAccountImplementation}</code>
         </div>
         <div className="kv">
           <span>FooDapp</span>
@@ -958,6 +980,8 @@ function App() {
   const network = getEip4337Network(networkId)
   const [bundlerUrl, setBundlerUrl] = useState(network.bundlerUrl)
   const [entryPoint, setEntryPoint] = useState<string>(network.entryPointAddress)
+  const [smartAccountImplementation, setSmartAccountImplementation] =
+    useState<string>(network.smartAccountImplementation)
   const [nonceKey, setNonceKey] = useState('0')
   const [paymaster, setPaymaster] = useState<string>(
     network.defaultPaymasterAddress ?? '',
@@ -1015,6 +1039,7 @@ function App() {
     setNetworkId(nextNetworkId)
     setBundlerUrl(nextNetwork.bundlerUrl)
     setEntryPoint(nextNetwork.entryPointAddress)
+    setSmartAccountImplementation(nextNetwork.smartAccountImplementation)
     setPaymaster(nextNetwork.defaultPaymasterAddress ?? '')
     setUsePaymaster(Boolean(nextNetwork.defaultPaymasterAddress))
     setAdvancedContractAddress(nextNetwork.defaultFooDappAddress ?? '')
@@ -1037,6 +1062,7 @@ function App() {
         return false
       }
     })() &&
+    (accountMode !== 'simple7702' || isAddress(smartAccountImplementation)) &&
     (!usePaymaster || isAddress(paymaster))
 
   const refreshDiagnostics = useCallback(async () => {
@@ -1298,7 +1324,9 @@ function App() {
 
   const buildParams = async () => {
     if (!canUseConfig) {
-      throw new Error('请填写有效的 Bundler URL、EntryPoint、Nonce key 和 Paymaster。')
+      throw new Error(
+        '请填写有效的 Bundler URL、EntryPoint、Nonce key、Simple7702 实现地址和 Paymaster。',
+      )
     }
     const userOperationNonceKey = parseNonceKey(nonceKey)
     const calls = buildCalls()
@@ -1317,7 +1345,10 @@ function App() {
       bundlerUrl,
       entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
       simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
-      smartAccountImplementation: network.smartAccountImplementation,
+      smartAccountImplementation: normalizeAddress(
+        smartAccountImplementation,
+        network.smartAccountImplementation,
+      ),
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? (paymaster as Address)
@@ -1342,7 +1373,10 @@ function App() {
       bundlerUrl,
       entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
       simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
-      smartAccountImplementation: network.smartAccountImplementation,
+      smartAccountImplementation: normalizeAddress(
+        smartAccountImplementation,
+        network.smartAccountImplementation,
+      ),
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? (paymaster as Address)
@@ -1369,7 +1403,10 @@ function App() {
       bundlerUrl,
       entryPointAddress: normalizeAddress(entryPoint, network.entryPointAddress),
       simpleAccountFactoryAddress: network.simpleAccountFactoryAddress,
-      smartAccountImplementation: network.smartAccountImplementation,
+      smartAccountImplementation: normalizeAddress(
+        smartAccountImplementation,
+        network.smartAccountImplementation,
+      ),
       nonceKey: userOperationNonceKey,
       paymasterAddress: usePaymaster
         ? (paymaster as Address)
@@ -1415,7 +1452,9 @@ function App() {
 
     try {
       if (!canUseConfig) {
-        throw new Error('请填写有效的 Bundler URL、EntryPoint、Nonce key 和 Paymaster。')
+        throw new Error(
+          '请填写有效的 Bundler URL、EntryPoint、Nonce key、Simple7702 实现地址和 Paymaster。',
+        )
       }
       const calls = buildCalls()
       if (!walletClient) {
@@ -1599,12 +1638,17 @@ function App() {
             setUsePaymaster={setUsePaymaster}
             accountMode={accountMode}
             setAccountMode={setAccountMode}
+            smartAccountImplementation={smartAccountImplementation}
+            setSmartAccountImplementation={setSmartAccountImplementation}
             ownerMode={ownerMode}
             setOwnerMode={setOwnerMode}
             ownerPrivateKey={ownerPrivateKey}
             setOwnerPrivateKey={setOwnerPrivateKey}
           />
-          <ContractsPanel network={network} />
+          <ContractsPanel
+            network={network}
+            smartAccountImplementation={smartAccountImplementation}
+          />
           <DiagnosticsPanel
             ownerCode={ownerCode}
             smartAccountAddress={smartAccountAddress}

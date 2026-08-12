@@ -23,8 +23,10 @@ import {
 } from 'viem/account-abstraction'
 import { recoverAuthorizationAddress } from 'viem/utils'
 import { privateKeyToAccount, toAccount, type PrivateKeyAccount } from 'viem/accounts'
-import { applyUserOperationNonceOffset } from './userOperationNonce'
 import { normalizePrivateKey } from './privateKey'
+import { assertPaymasterSponsorship } from './paymasterSponsorship'
+import { needsSmartAccountAuthorization } from './smartAccountAuthorization'
+import { applyUserOperationNonceOffset } from './userOperationNonce'
 import type {
   AccountMode,
   OwnerMode,
@@ -170,6 +172,10 @@ const SIMPLE_ACCOUNT_FACTORY_ABI = [
 ] as const
 
 const DEFAULT_USER_OPERATION_NONCE_KEY = 0n
+const EIP7702_STUB_R =
+  '0xfffffffffffffffffffffffffffffff000000000000000000000000000000000' as Hex
+const EIP7702_STUB_S =
+  '0x7aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as Hex
 
 export type FooCallPreset = 'deposit' | 'transfer' | 'withdraw' | 'custom'
 
@@ -573,28 +579,56 @@ async function createClients({
   })
 
   const accountAddress = account.address
-  const accountCode = await publicClient.getCode({ address: accountAddress })
-  const isAccountDeployed = Boolean(accountCode && accountCode !== '0x')
-  const authorization =
-    options?.signAuthorization &&
-    accountMode === 'simple7702' &&
-    !isAccountDeployed
-      ? await (async () => {
-          const signedAuthorization = await owner.signAuthorization?.({
-            address: smartAccountImplementation,
-            chainId: chain.id,
-            nonce: await publicClient.getTransactionCount({
-              address: owner.address,
-              blockTag: 'pending',
-            }),
-          })
-          if (!signedAuthorization) {
-            throw new Error('Owner 无法签名 EIP-7702 授权。')
-          }
-          await assertAuthorizationSigner(signedAuthorization, owner.address)
-          return signedAuthorization
-        })()
+  const currentDelegation =
+    accountMode === 'simple7702'
+      ? await publicClient.getDelegation({ address: accountAddress })
       : undefined
+  const accountCode =
+    accountMode === 'simpleAccount'
+      ? await publicClient.getCode({ address: accountAddress })
+      : undefined
+  const isAccountDeployed =
+    accountMode === 'simple7702'
+      ? currentDelegation !== undefined
+      : Boolean(accountCode && accountCode !== '0x')
+  const needsAuthorization =
+    accountMode === 'simple7702' &&
+    (ownerMode === 'privateKey'
+      ? needsSmartAccountAuthorization(
+          currentDelegation,
+          smartAccountImplementation,
+        )
+      : !isAccountDeployed)
+  const authorization = needsAuthorization
+    ? await (async () => {
+        const authorizationRequest = {
+          address: smartAccountImplementation,
+          chainId: chain.id,
+          nonce: await publicClient.getTransactionCount({
+            address: owner.address,
+            blockTag: 'pending',
+          }),
+        }
+
+        if (!options?.signAuthorization) {
+          return {
+            ...authorizationRequest,
+            yParity: 1,
+            r: EIP7702_STUB_R,
+            s: EIP7702_STUB_S,
+          }
+        }
+
+        const signedAuthorization = await owner.signAuthorization?.(
+          authorizationRequest,
+        )
+        if (!signedAuthorization) {
+          throw new Error('Owner 无法签名 EIP-7702 授权。')
+        }
+        await assertAuthorizationSigner(signedAuthorization, owner.address)
+        return signedAuthorization
+      })()
+    : undefined
 
   return {
     account,
@@ -609,6 +643,7 @@ async function createClients({
 function getPrepareParameters(
   accountMode: AccountMode,
   isAccountDeployed: boolean,
+  hasAuthorization: boolean,
 ) {
   if (accountMode === 'simple7702') {
     const parameters = [
@@ -618,9 +653,9 @@ function getPrepareParameters(
       'nonce',
       'signature',
     ] as const
-    return isAccountDeployed
-      ? parameters
-      : (['factory', ...parameters, 'authorization'] as const)
+    return hasAuthorization || !isAccountDeployed
+      ? (['factory', ...parameters, 'authorization'] as const)
+      : parameters
   }
 
   const parameters = [
@@ -636,15 +671,35 @@ function getPrepareParameters(
 export async function prepareDemoUserOperation(
   params: PrepareParams,
 ): Promise<PreparedUserOperation> {
-  const { account, accountMode, bundlerClient, isAccountDeployed } =
+  const {
+    account,
+    accountMode,
+    authorization,
+    bundlerClient,
+    isAccountDeployed,
+    publicClient,
+  } =
     await createClients(params)
 
   const request = await bundlerClient.prepareUserOperation({
     account,
-    parameters: getPrepareParameters(accountMode, isAccountDeployed),
+    parameters: getPrepareParameters(
+      accountMode,
+      isAccountDeployed,
+      Boolean(authorization),
+    ),
     calls: params.calls,
+    ...(authorization ? { authorization } : {}),
     ...(params.paymasterAddress ? { paymaster: params.paymasterAddress } : {}),
   } as never)
+
+  if (params.paymasterAddress) {
+    await assertPaymasterSponsorship({
+      publicClient,
+      paymasterAddress: params.paymasterAddress,
+      userOperation: request as never,
+    })
+  }
 
   return request as PreparedUserOperation
 }
@@ -652,16 +707,35 @@ export async function prepareDemoUserOperation(
 export async function prepareSignedDemoUserOperation(
   params: PrepareParams,
 ): Promise<SignedUserOperation> {
-  const { account, accountMode, authorization, bundlerClient, isAccountDeployed } =
-    await createClients(params, { signAuthorization: true })
+  const {
+    account,
+    accountMode,
+    authorization,
+    bundlerClient,
+    isAccountDeployed,
+    publicClient,
+  } = await createClients(params, { signAuthorization: true })
 
   const request = (await bundlerClient.prepareUserOperation({
     account,
-    parameters: getPrepareParameters(accountMode, isAccountDeployed),
+    parameters: getPrepareParameters(
+      accountMode,
+      isAccountDeployed,
+      Boolean(authorization),
+    ),
     calls: params.calls,
     ...(authorization ? { authorization } : {}),
     ...(params.paymasterAddress ? { paymaster: params.paymasterAddress } : {}),
   } as never)) as PreparedUserOperation
+
+  if (params.paymasterAddress) {
+    await assertPaymasterSponsorship({
+      publicClient,
+      paymasterAddress: params.paymasterAddress,
+      userOperation: request as never,
+    })
+  }
+
   const signature = await account.signUserOperation?.(request as never)
 
   if (!signature) {
@@ -677,37 +751,14 @@ export async function prepareSignedDemoUserOperation(
 export async function sendDemoUserOperation(
   params: SendParams,
 ): Promise<UserOperationResult> {
-  const { account, accountMode, authorization, bundlerClient, isAccountDeployed } =
-    await createClients(params, { signAuthorization: true })
-
-  const hash = await bundlerClient.sendUserOperation({
-    account,
-    parameters: getPrepareParameters(accountMode, isAccountDeployed),
-    calls: params.calls,
-    ...(authorization ? { authorization } : {}),
-    ...(params.paymasterAddress ? { paymaster: params.paymasterAddress } : {}),
-  } as never)
-
-  let receipt: Awaited<
-    ReturnType<typeof bundlerClient.getUserOperationReceipt>
-  >
-  for (;;) {
-    try {
-      receipt = await bundlerClient.getUserOperationReceipt({ hash })
-      break
-    } catch (error) {
-      if (!isPendingReceiptError(error)) throw error
-      await sleep(2_000)
-    }
-  }
-
-  return {
-    userOpHash: hash,
-    txHash: receipt.receipt.transactionHash,
-    success: receipt.success,
-    blockNumber: receipt.receipt.blockNumber,
-    reason: receipt.reason,
-  }
+  const request = await prepareSignedDemoUserOperation(params)
+  return sendPreparedDemoUserOperation({
+    bundlerUrl: params.bundlerUrl,
+    chain: params.chain,
+    entryPointAddress: params.entryPointAddress,
+    request,
+    rpcUrl: params.rpcUrl,
+  })
 }
 
 export async function sendPreparedDemoUserOperation({

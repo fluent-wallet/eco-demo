@@ -46,7 +46,10 @@ The repo has two layers:
 - Batch mode uses the explicit call list; "add current call" snapshots the current ABI form, and "add CFX transfer" snapshots transfer fields.
 - `accountAbstraction.ts` turns one call into `execute` and multiple calls into `executeBatch`.
 - Runtime config includes `Nonce key`, default `0`; `App.tsx` validates it before preparing or sending UserOps.
+- Runtime config exposes an editable Simple7702 implementation address, defaulting to the selected network configuration.
 - `accountAbstraction.ts` reads nonce with `EntryPoint.getNonce(sender, nonceKey)` for both SimpleAccount and Simple7702.
+- Private-key Simple7702 flows read the EOA's EIP-7702 delegation and include a fresh authorization in the UserOperation when delegation is missing or targets a different implementation.
+- When Paymaster sponsorship is enabled, `paymasterSponsorship.ts` packs the gas-prepared UserOperation and calls `canSponsor` before UserOperation signing; a returned reason aborts the flow, while failed optional-interface probes preserve legacy Paymaster compatibility.
 - Bulk UserOps use per-item nonce keys starting from the configured key. The UI prepares and signs all bulk requests first, then broadcasts the signed UserOps in parallel so repeated sends do not share the same nonce sequence.
 - Bulk UserOps always build a wallet-owner batch from the connected wallet A. `bulkOwnerPrivateKey` is optional; when it is non-empty, `App.tsx` validates it and adds a second private-key-owner batch, otherwise only wallet A is signed and sent.
 - `prepareSignedDemoUserOperation` prepares and signs a request; `sendPreparedDemoUserOperation` broadcasts an already signed request and waits for the receipt. Keep this split when changing bulk-send behavior.
