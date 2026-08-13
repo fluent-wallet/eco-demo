@@ -36,12 +36,13 @@ eco-demo/
 ## Completed Modules
 
 - Root workspace commands, local shell, and Pages build flow.
+- Post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, and their local HTML asset references.
 - 4337 demo:
   - topbar wallet control with multi-wallet connect modal
   - full connected address display
   - Testnet/Mainnet status and switch-to-selected-network action
   - runtime config, contracts, diagnostics, guide modal
-  - ABI-driven write-call builder with network-aware ABI fetch/cache, method selection, argument parsing, payable values, and Chinese validation errors
+  - ABI-driven write-call builder with network-aware ABI fetch/cache, defensive ABI structure validation, canonical nested-tuple signatures, method selection, argument parsing, payable values, and Chinese validation errors
   - prepare/send UserOperation
   - executeBatch call list
   - CFX transfer calls
@@ -53,7 +54,8 @@ eco-demo/
   - editable Simple7702 implementation address, with the testnet default set to `0x8F5d8d7f3467Dd2e34186E232D8b5a5f35462949`
   - Simple7702 flows that preserve an existing EOA delegation by default, with optional forced upgrades that attach a fresh authorization when the target differs
   - Paymaster `canSponsor` pre-check after gas preparation and before UserOperation signing, with rejection reasons shown and legacy Paymasters treated as supported
-  - focused Node fixtures for ABI encoding, ConfluxScan ABI payload parsing, nonce key validation, private-key validation, and nonce offset calculation
+  - focused Node fixtures for ABI encoding, offline real-world ConfluxScan nested-tuple/overload snapshots, ConfluxScan ABI payload parsing, nonce key validation, private-key validation, sponsorship, authorization, and nonce offset calculation
+  - root `pnpm test:fixtures` aggregation for all current 4337 fixtures
 - 7702 demo:
   - network selector
   - authorization list editor
@@ -72,9 +74,7 @@ eco-demo/
 ## Current Open Work
 
 - Confirm 4337 guide modal copy, first-open behavior, and whether a visible reset entry is needed.
-- Validate 4337 ABI-driven call builder against more real-world verified contracts, especially nested tuples/arrays and overloaded methods from ConfluxScan.
 - Decide root README language policy: Chinese, English, or bilingual.
-- Add Pages smoke checks after `pnpm build` if deployment regressions become common.
 - Validate both 4337 account modes with funded Mainnet accounts before relying on the production path, including the configured mainnet Paymaster sponsorship path.
 
 ## Key Decisions
@@ -112,6 +112,8 @@ pnpm install
 pnpm dev
 pnpm lint
 pnpm build
+pnpm test:fixtures
+pnpm test:pages
 pnpm --filter @eco-demo/eip-4337-demo test:contract-calls
 pnpm --filter @eco-demo/eip-4337-demo test:conflux-scan-abi
 pnpm --filter @eco-demo/eip-4337-demo test:nonce-key

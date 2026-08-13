@@ -9,11 +9,13 @@
     "lint": "eslint .",
     "test:conflux-scan-abi": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/confluxScanAbi.fixtures.mjs",
     "test:contract-calls": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/contractCalls.fixtures.mjs",
+    "test:real-world-contract-calls": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/realWorldContractCalls.fixtures.mjs",
     "test:nonce-key": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/nonceKey.fixtures.mjs",
     "test:paymaster-sponsorship": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/paymasterSponsorship.fixtures.mjs",
     "test:private-key": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/privateKey.fixtures.mjs",
     "test:smart-account-authorization": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/smartAccountAuthorization.fixtures.mjs",
     "test:user-operation-nonce": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/userOperationNonce.fixtures.mjs",
+    "test:fixtures": "pnpm run test:conflux-scan-abi && pnpm run test:contract-calls && pnpm run test:real-world-contract-calls && pnpm run test:nonce-key && pnpm run test:paymaster-sponsorship && pnpm run test:private-key && pnpm run test:smart-account-authorization && pnpm run test:user-operation-nonce",
     "preview": "vite preview"
   },
   "dependencies": {

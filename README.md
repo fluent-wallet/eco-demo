@@ -83,6 +83,8 @@ The generated `dist/` directory contains:
 - `/eip-4337/`: built EIP-4337 demo
 - `/eip-7702/`: built EIP-7702 demo
 
+The root build finishes by checking all three Pages routes and their local HTML asset references.
+
 Build individual apps without assembling Pages:
 
 ```sh
@@ -97,9 +99,22 @@ Run lint for all apps:
 pnpm lint
 ```
 
+Run all focused EIP-4337 fixtures, including the real-world ConfluxScan ABI snapshots:
+
+```sh
+pnpm test:fixtures
+```
+
+If a root `dist/` already exists, run the Pages route smoke check directly with:
+
+```sh
+pnpm test:pages
+```
+
 Before pushing changes, run:
 
 ```sh
+pnpm test:fixtures
 pnpm lint
 pnpm build
 ```

@@ -333,7 +333,7 @@ function GuideContent({ network }: { network: Eip4337Network }) {
           <li>Paymaster 赞助开启时，签名前会调用可选的 canSponsor 接口检查当前 UserOperation；返回拒绝原因会直接提示，未实现该接口的旧 Paymaster 按支持代付处理。</li>
           <li>批量 CFX 转账消耗的是智能账户余额，不是 Owner 钱包余额；发送前请先确认“智能账户 CFX”。</li>
           <li>如果钱包还没有授权给其他智能账户，尝试 7702 流程时需要先去 7702 demo 进行授权；或者 Owner 签名方式使用私钥，会在 aa 交易里带上授权信息同时完成授权和 UserOp 执行。</li>
-          <li>“准备 UserOperation”只构造和签名请求，不会上链；“发送 UserOperation”才会提交到 Bundler。</li>
+          <li>“准备 UserOperation”只构造、估算并执行可选赞助检查，不会签名或上链；“发送 UserOperation”才会签名并提交到 Bundler。</li>
           <li>批量执行是 executeBatch，是指一个 UserOp 里包含多个合约调用（比如 approve + transfer）。</li>
           <li>批量发送 UserOps 是根据填入的批量数量把 UserOp 重复发送 n 次，以达到一个 bundle tx 内包含多个 aa tx 的目的（实际打包规则由 Bundler RPC 实现，不能保证一定会多个交易打包在一个 bundle）。</li>
           <li>如果希望测试 bundle tx 上链后内部 aa 交易失败的情况，可以用一个只有 1 CFX 的账户私钥批量发 UserOps，并包含 0.9 CFX 转账给其他账户，这样重复发送时只会有一笔成功，其余会失败。</li>

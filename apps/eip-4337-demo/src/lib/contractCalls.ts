@@ -87,30 +87,32 @@ export function parseConfluxScanAbiResponse(
     throw new Error('ConfluxScan 返回的 ABI 不是有效 JSON。')
   }
 
-  if (!Array.isArray(parsed)) {
-    throw new Error('ABI 不是有效的 JSON 数组。')
+  if (!isValidAbi(parsed)) {
+    throw new Error('ConfluxScan 返回的 ABI 结构不可用。')
   }
 
-  return parsed as Abi
+  return parsed
 }
 
-export function getWritableFunctions(abi: Abi): WritableAbiFunction[] {
+export function getWritableFunctions(abi: unknown): WritableAbiFunction[] {
+  if (!Array.isArray(abi)) return []
+
   return abi.filter(
-    (item): item is WritableAbiFunction =>
-      item.type === 'function' &&
-      (item.stateMutability === 'nonpayable' ||
-        item.stateMutability === 'payable'),
+    (item): item is WritableAbiFunction => isWritableAbiFunction(item),
   )
 }
 
 export function getFunctionKey(fn: WritableAbiFunction, index: number) {
-  const inputs = fn.inputs.map((item) => item.type).join(',')
+  const inputs = fn.inputs.map(formatCanonicalParameterType).join(',')
   return `${fn.name}(${inputs})#${index}`
 }
 
 export function formatFunctionSignature(fn: WritableAbiFunction) {
   const inputs = fn.inputs
-    .map((item) => `${item.type}${item.name ? ` ${item.name}` : ''}`)
+    .map(
+      (item) =>
+        `${formatCanonicalParameterType(item)}${item.name ? ` ${item.name}` : ''}`,
+    )
     .join(', ')
   return `${fn.name}(${inputs})`
 }
@@ -179,19 +181,36 @@ function parseAbiValue(
   }
 
   if (input.type.startsWith('uint') || input.type.startsWith('int')) {
+    const integerType = parseIntegerType(input.type)
+    if (!integerType) {
+      throw new Error(`${path} 使用了无效的整数类型 ${input.type}。`)
+    }
     if (!value) throw new Error(`${path} 不能为空。`)
+
+    let parsed: bigint
     try {
-      const parsed = BigInt(value)
-      if (input.type.startsWith('uint') && parsed < 0n) {
-        throw new Error(`${path} 不能为负数。`)
-      }
-      return parsed
+      parsed = BigInt(value)
     } catch {
-      if (input.type.startsWith('uint') && value.startsWith('-')) {
-        throw new Error(`${path} 不能为负数。`)
-      }
       throw new Error(`${path} 需要是整数。`)
     }
+
+    if (!integerType.signed && parsed < 0n) {
+      throw new Error(`${path} 不能为负数。`)
+    }
+
+    const minimum = integerType.signed
+      ? -(1n << BigInt(integerType.bits - 1))
+      : 0n
+    const maximum = integerType.signed
+      ? (1n << BigInt(integerType.bits - 1)) - 1n
+      : (1n << BigInt(integerType.bits)) - 1n
+    if (parsed < minimum || parsed > maximum) {
+      throw new Error(
+        `${path} 超出 ${input.type} 可表示范围（${minimum} 到 ${maximum}）。`,
+      )
+    }
+
+    return parsed
   }
 
   if (input.type === 'string') {
@@ -199,7 +218,7 @@ function parseAbiValue(
   }
 
   if (input.type === 'bytes' || /^bytes\d+$/.test(input.type)) {
-    if (!value) return '0x'
+    if (input.type === 'bytes' && !value) return '0x'
     const hex = (value.startsWith('0x') ? value : `0x${value}`) as Hex
     if (!isHex(hex)) {
       throw new Error(`${path} 需要是十六进制 bytes。`)
@@ -338,4 +357,80 @@ function parseArrayType(type: string) {
 
 function getInputLabel(input: AbiParameter) {
   return input.name ? `${input.name} (${input.type})` : input.type
+}
+
+function formatCanonicalParameterType(input: AbiParameter): string {
+  const tupleType = input.type.match(/^tuple((?:\[\d*\])*)$/)
+  if (!tupleType) return input.type
+
+  const maybeTuple = input as AbiParameter & {
+    components?: readonly AbiParameter[]
+  }
+  if (!Array.isArray(maybeTuple.components)) return input.type
+
+  const components = maybeTuple.components
+    .map(formatCanonicalParameterType)
+    .join(',')
+  return `(${components})${tupleType[1]}`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isValidAbi(value: unknown): value is Abi {
+  return Array.isArray(value) && value.every(isValidAbiItem)
+}
+
+function isValidAbiItem(value: unknown) {
+  if (!isRecord(value)) return false
+  if (value.type !== 'function') return true
+
+  return (
+    typeof value.name === 'string' &&
+    typeof value.stateMutability === 'string' &&
+    Array.isArray(value.inputs) &&
+    value.inputs.every(isValidAbiParameter) &&
+    Array.isArray(value.outputs) &&
+    value.outputs.every(isValidAbiParameter)
+  )
+}
+
+function isValidAbiParameter(value: unknown): value is AbiParameter {
+  if (!isRecord(value) || typeof value.type !== 'string') return false
+  if (!/^tuple(?:\[\d*\])*$/.test(value.type)) return true
+
+  return (
+    Array.isArray(value.components) &&
+    value.components.every(isValidAbiParameter)
+  )
+}
+
+function isWritableAbiFunction(
+  value: unknown,
+): value is WritableAbiFunction {
+  return (
+    isRecord(value) &&
+    value.type === 'function' &&
+    typeof value.name === 'string' &&
+    (value.stateMutability === 'nonpayable' ||
+      value.stateMutability === 'payable') &&
+    Array.isArray(value.inputs) &&
+    value.inputs.every(isValidAbiParameter) &&
+    Array.isArray(value.outputs) &&
+    value.outputs.every(isValidAbiParameter)
+  )
+}
+
+function parseIntegerType(type: string) {
+  const match = type.match(/^(u?int)(\d*)$/)
+  if (!match) return null
+
+  const bits = match[2] ? Number.parseInt(match[2], 10) : 256
+  if (bits < 8 || bits > 256 || bits % 8 !== 0) return null
+
+  return {
+    signed: match[1] === 'int',
+    bits,
+  }
 }

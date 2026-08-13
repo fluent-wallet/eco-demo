@@ -13,6 +13,8 @@ pnpm install
 pnpm dev
 pnpm lint
 pnpm build
+pnpm test:fixtures
+pnpm test:pages
 pnpm --filter @eco-demo/eip-4337-demo test:contract-calls
 pnpm --filter @eco-demo/eip-4337-demo test:conflux-scan-abi
 pnpm --filter @eco-demo/eip-4337-demo test:nonce-key
@@ -31,12 +33,13 @@ pnpm --filter @eco-demo/eip-4337-demo test:user-operation-nonce
 - 4337 demo has a compact topbar wallet control, multi-wallet connect modal, full connected address display, and switch-to-selected-network action for Conflux eSpace Testnet or Mainnet.
 - 4337 defaults to Testnet (chain ID `71`, `https://bundler-testnet.confluxrpc.org`) and supports Mainnet (chain ID `1030`, `https://bundler.confluxrpc.org`). Mainnet uses EntryPoint v0.8, `0xF493e19B292855B467D7806b2CCF8c078518d43c` as the Simple7702 implementation, and `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b` as the default Paymaster; sponsorship starts enabled.
 - 4337 side panels now start with runtime config; wallet no longer occupies a large sidebar card.
-- 4337 operation builder is ABI-driven. Testnet defaults to FooDapp + built-in ABI; queried ConfluxScan ABIs are cached by network and lowercased address in `localStorage` under `eco-demo:eip-4337-abi-cache`.
-- 4337 ABI call inputs validate arrays, tuples, tuple fields, addresses, booleans, integers, bytes/fixed bytes, payable value, and CFX transfers. Single and batch modes both build `{ to, data, value }[]`; batch mode only uses calls added to the list.
+- 4337 operation builder is ABI-driven. Testnet defaults to FooDapp + built-in ABI; queried ConfluxScan ABIs are validated and cached by network and lowercased address in `localStorage` under `eco-demo:eip-4337-abi-cache`.
+- 4337 ABI call inputs validate arrays, nested tuples, tuple fields, addresses, booleans, integer bit ranges, bytes/fixed bytes, payable value, and CFX transfers. Canonical tuple signatures distinguish overloads. Single and batch modes both build `{ to, data, value }[]`; batch mode only uses calls added to the list.
 - 4337 runtime config exposes `Nonce key`, default `0`. Parsing lives in `src/lib/nonceKey.ts`. Both SimpleAccount and Simple7702 call `EntryPoint.getNonce(sender, key)` with this value. Bulk UserOps use per-item nonce keys starting from the configured key, sign all prepared requests first, then broadcast the signed requests in parallel.
 - 4337 bulk UserOps require wallet A. The bulk Owner private key is optional: if filled, wallet A and private-key owner B both prepare/sign/send the configured count; if empty, only wallet A sends. The optional bulk private key is validated only when non-empty.
 - 4337 Owner private-key and bulk Owner private-key inputs are intentionally plain text for test workflow visibility. Private-key execution paths validate 32-byte hex format and secp256k1 range before preparing/sending UserOps.
-- 4337 has Node fixture scripts under `apps/eip-4337-demo/scripts/` for ABI call encoding, ConfluxScan ABI response parsing, nonce key parsing, private-key validation, and UserOperation nonce offsets. They use Node 22 `--experimental-strip-types` and do not require a test framework.
+- 4337 has Node fixture scripts under `apps/eip-4337-demo/scripts/`, including offline snapshots extracted from real verified ConfluxScan contracts with nested tuples and overloaded methods. `pnpm test:fixtures` runs the complete set without a test framework.
+- Root `pnpm build` assembles Pages and then smoke-checks `/`, `/eip-4337/`, `/eip-7702/` plus their local HTML asset references.
 - 7702 demo has network selector, authorization list, nonce query, delegated transaction sender, and result panel. Its injected Fluent/MetaMask helper clients must not crash module load when wallet providers are absent.
 - 7702 tx sender and EOA private-key inputs are intentionally plain text for test workflow visibility. `App.tsx` normalizes non-empty key input by auto-prefixing `0x` when missing, then validates 32-byte hex format and secp256k1 range before delegate sending or nonce lookup.
 - Demo home links are path-aware for local dev and GitHub Pages subpaths; they should not be changed back to absolute `/`.
