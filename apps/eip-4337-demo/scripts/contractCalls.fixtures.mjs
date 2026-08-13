@@ -100,6 +100,27 @@ const sampleAbi = [
   },
   {
     type: 'function',
+    name: 'setUint8',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'value', type: 'uint8' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'setInt8',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'value', type: 'int8' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'setInvalidInteger',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'value', type: 'uint7' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
     name: 'setPayload',
     stateMutability: 'nonpayable',
     inputs: [{ name: 'payload', type: 'bytes' }],
@@ -137,6 +158,52 @@ const sampleAbi = [
     name: 'overloaded',
     stateMutability: 'nonpayable',
     inputs: [{ name: 'value', type: 'string' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'tupleOverload',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'value',
+        type: 'tuple',
+        components: [
+          { name: 'owner', type: 'address' },
+          { name: 'amount', type: 'uint256' },
+        ],
+      },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'tupleOverload',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'value',
+        type: 'tuple',
+        components: [
+          { name: 'owner', type: 'address' },
+          {
+            name: 'rules',
+            type: 'tuple[]',
+            components: [
+              { name: 'limit', type: 'uint8' },
+              {
+                name: 'metadata',
+                type: 'tuple',
+                components: [
+                  { name: 'selector', type: 'bytes4' },
+                  { name: 'enabled', type: 'bool' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
     outputs: [],
   },
   {
@@ -202,6 +269,35 @@ const decodedPayload = decodeFunctionData({
   data: encodeWritableFunctionCall(setPayload, ['1234abcd']),
 })
 assert.deepEqual(decodedPayload.args, ['0x1234abcd'])
+assert.deepEqual(
+  decodeFunctionData({
+    abi: [setPayload],
+    data: encodeWritableFunctionCall(setPayload, ['']),
+  }).args,
+  ['0x'],
+)
+
+const setUint8 = writableFunction(sampleAbi, 'setUint8')
+for (const value of ['0', '255']) {
+  assert.deepEqual(
+    decodeFunctionData({
+      abi: [setUint8],
+      data: encodeWritableFunctionCall(setUint8, [value]),
+    }).args,
+    [Number(value)],
+  )
+}
+
+const setInt8 = writableFunction(sampleAbi, 'setInt8')
+for (const value of ['-128', '127']) {
+  assert.deepEqual(
+    decodeFunctionData({
+      abi: [setInt8],
+      data: encodeWritableFunctionCall(setInt8, [value]),
+    }).args,
+    [Number(value)],
+  )
+}
 
 const setUnnamedTuple = writableFunction(sampleAbi, 'setUnnamedTuple')
 const decodedUnnamedTuple = decodeFunctionData({
@@ -223,6 +319,20 @@ assert.equal(
   formatFunctionSignature(overloadedFunctions[0]),
   'overloaded(uint256 value)',
 )
+const tupleOverloads = getWritableFunctions(sampleAbi).filter(
+  (item) => item.name === 'tupleOverload',
+)
+assert.deepEqual(
+  tupleOverloads.map((item, index) => getFunctionKey(item, index)),
+  [
+    'tupleOverload((address,uint256))#0',
+    'tupleOverload((address,(uint8,(bytes4,bool))[]))#1',
+  ],
+)
+assert.deepEqual(tupleOverloads.map(formatFunctionSignature), [
+  'tupleOverload((address,uint256) value)',
+  'tupleOverload((address,(uint8,(bytes4,bool))[]) value)',
+])
 assert.equal(
   getWritableFunctions(sampleAbi).some((item) => item.name === 'readOnly'),
   false,
@@ -257,6 +367,13 @@ assertThrowsMessage(
       '0x1234567890',
     ]),
   'selector (bytes4) 需要 4 字节',
+)
+assertThrowsMessage(
+  () =>
+    encodeWritableFunctionCall(writableFunction(sampleAbi, 'setSelector'), [
+      '',
+    ]),
+  'selector (bytes4) 需要 4 字节，当前为 0 字节',
 )
 assertThrowsMessage(
   () =>
@@ -298,6 +415,26 @@ assertThrowsMessage(
       JSON.stringify({ 0: TARGET_ADDRESS }),
     ]),
   'item (tuple) 缺少 tuple 字段 1',
+)
+assertThrowsMessage(
+  () => encodeWritableFunctionCall(setUint8, ['256']),
+  'value (uint8) 超出 uint8 可表示范围（0 到 255）',
+)
+assertThrowsMessage(
+  () => encodeWritableFunctionCall(setInt8, ['-129']),
+  'value (int8) 超出 int8 可表示范围（-128 到 127）',
+)
+assertThrowsMessage(
+  () => encodeWritableFunctionCall(setInt8, ['128']),
+  'value (int8) 超出 int8 可表示范围（-128 到 127）',
+)
+assertThrowsMessage(
+  () =>
+    encodeWritableFunctionCall(
+      writableFunction(sampleAbi, 'setInvalidInteger'),
+      ['1'],
+    ),
+  'value (uint7) 使用了无效的整数类型 uint7',
 )
 
 console.log('contractCalls fixtures passed')

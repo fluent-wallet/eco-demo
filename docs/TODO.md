@@ -3,17 +3,21 @@
 ## Next
 
 - Confirm 4337 guide modal copy, first-open behavior, and whether a visible reset entry is needed.
-- Validate ABI-driven call builder manually or with fixtures against real verified ConfluxScan contracts that include nested tuples/arrays and overloaded methods.
 - Run funded-account end-to-end UserOperation checks for both 4337 account modes on Mainnet, including the configured Paymaster sponsorship path.
 - Decide root README language policy: Chinese, English, or bilingual.
 - Consider extracting 7702 private-key normalization/validation into a helper fixture if more input normalization is added.
 
 ## Engineering
 
-- Consider a root-level test script that runs all current 4337 fixture scripts together.
-- Add post-build smoke checks for `/`, `/eip-4337/`, `/eip-7702/`.
 - If more demos are added, extract shared header/panel/button primitives instead of repeating styles per app.
 - Revisit 4337 bundle size only if the warning starts affecting local iteration or Pages load time.
+
+## Recently Completed
+
+- Added root `pnpm test:fixtures` aggregation for all current EIP-4337 fixture scripts.
+- Added post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, and their local HTML asset references.
+- Added offline fixtures from real verified ConfluxScan contracts covering nested tuple/array encoding and overloaded methods, plus a manual browser check of their method labels.
+- Hardened ABI parsing for canonical tuple signatures, malformed ConfluxScan/cache entries, integer bit ranges, and empty fixed-length bytes.
 
 ## Constraints
 

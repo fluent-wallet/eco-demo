@@ -24,6 +24,7 @@ The repo has two layers:
 - Root build script copies outputs into root `dist/eip-4337` and `dist/eip-7702`.
 - Root build script generates production homepage `dist/index.html`.
 - App card links are relative (`./eip-4337/`, `./eip-7702/`) for GitHub Pages subpaths.
+- Root `pnpm build` then runs `scripts/smoke-pages.mjs`, which verifies all three route entries and their local HTML asset references.
 
 ## App Boundaries
 
@@ -59,7 +60,7 @@ The repo has two layers:
 - ABI cache is local browser state keyed by lowercased address in `localStorage`; do not treat it as deploy-time config.
 - ABI cache is partitioned by network, and ABI lookups use the selected network's ConfluxScan API so a Testnet ABI is never reused on Mainnet.
 - Runtime network selection resets Bundler, EntryPoint, Paymaster defaults, and the default ABI target. Mainnet defaults to Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`, so sponsorship begins enabled.
-- Lightweight fixtures live in `apps/eip-4337-demo/scripts/*.fixtures.mjs`. They use Node 22 type stripping to import selected `.ts` modules and avoid adding a test framework.
+- Lightweight fixtures live in `apps/eip-4337-demo/scripts/*.fixtures.mjs`. They use Node 22 type stripping to import selected `.ts` modules and avoid adding a test framework. The suite includes offline ABI excerpts from real verified ConfluxScan contracts with nested tuple/array and overloaded methods; `pnpm test:fixtures` runs the full set.
 
 ### `apps/eip-7702-demo`
 

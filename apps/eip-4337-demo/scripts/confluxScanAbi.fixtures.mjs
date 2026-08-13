@@ -72,7 +72,58 @@ assertThrowsMessage(
 )
 assertThrowsMessage(
   () => parseConfluxScanAbiResponse({ status: '1', result: '{}' }),
-  'ABI 不是有效的 JSON 数组。',
+  'ConfluxScan 返回的 ABI 结构不可用。',
+)
+assertThrowsMessage(
+  () => parseConfluxScanAbiResponse({ status: '1', result: '[null]' }),
+  'ConfluxScan 返回的 ABI 结构不可用。',
+)
+assertThrowsMessage(
+  () =>
+    parseConfluxScanAbiResponse({
+      status: '1',
+      result: JSON.stringify([
+        {
+          type: 'function',
+          name: 'missingInputs',
+          stateMutability: 'nonpayable',
+          outputs: [],
+        },
+      ]),
+    }),
+  'ConfluxScan 返回的 ABI 结构不可用。',
+)
+assertThrowsMessage(
+  () =>
+    parseConfluxScanAbiResponse({
+      status: '1',
+      result: JSON.stringify([
+        {
+          type: 'function',
+          name: 'missingTupleComponents',
+          stateMutability: 'nonpayable',
+          inputs: [{ name: 'value', type: 'tuple[]' }],
+          outputs: [],
+        },
+      ]),
+    }),
+  'ConfluxScan 返回的 ABI 结构不可用。',
+)
+
+assert.deepEqual(getWritableFunctions(null), [])
+assert.deepEqual(
+  getWritableFunctions([
+    null,
+    {},
+    {
+      type: 'function',
+      name: 'missingInputs',
+      stateMutability: 'nonpayable',
+      outputs: [],
+    },
+    ...writableAbi,
+  ]),
+  writableAbi,
 )
 
 console.log('confluxScanAbi fixtures passed')
