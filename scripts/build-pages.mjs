@@ -24,6 +24,14 @@ const apps = [
     targetDir: resolve(outputDir, 'eip-7702'),
     href: './eip-7702/',
   },
+  {
+    name: 'Permit / Permit2 Demo',
+    description: 'Inspect ERC-2612, DAI-style Permit, and Permit2 typed-data signatures, approvals, and transfers.',
+    packageName: '@eco-demo/permit-demo',
+    sourceDir: resolve(root, 'apps/permit-demo/dist'),
+    targetDir: resolve(outputDir, 'permit'),
+    href: './permit/',
+  },
 ]
 
 for (const app of apps) {

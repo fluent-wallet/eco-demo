@@ -11,20 +11,21 @@ The repo has two layers:
 
 ### Local Dev
 
-- `scripts/dev.mjs` starts three Vite processes.
+- `scripts/dev.mjs` starts four Vite processes.
 - Root shell runs on `127.0.0.1:4173`.
 - 4337 app runs on `127.0.0.1:5173`.
 - 7702 app runs on `127.0.0.1:3008`.
-- Root `index.html` and `eip-*/index.html` embed app dev servers for one-entry preview.
+- Permit app runs on `127.0.0.1:3010`.
+- Root `index.html` and the route shell pages (`eip-4337/index.html`, `eip-7702/index.html`, `permit/index.html`) embed app dev servers for one-entry preview.
 
 ### Production Build
 
 - `scripts/build-pages.mjs` is the production route source of truth.
 - Each app builds its own `dist/`.
-- Root build script copies outputs into root `dist/eip-4337` and `dist/eip-7702`.
+- Root build script copies outputs into root `dist/eip-4337`, `dist/eip-7702`, and `dist/permit`.
 - Root build script generates production homepage `dist/index.html`.
-- App card links are relative (`./eip-4337/`, `./eip-7702/`) for GitHub Pages subpaths.
-- Root `pnpm build` then runs `scripts/smoke-pages.mjs`, which verifies all three route entries and their local HTML asset references.
+- App card links are relative (`./eip-4337/`, `./eip-7702/`, `./permit/`) for GitHub Pages subpaths.
+- Root `pnpm build` then runs `scripts/smoke-pages.mjs`, which verifies all four route entries and their local HTML asset references.
 
 ## App Boundaries
 
@@ -70,11 +71,24 @@ The repo has two layers:
 - `App.tsx` owns the authorization form, nonce lookup, and delegate send flow.
 - tx sender and EOA private-key inputs are intentionally plain-text controlled inputs. `normalizeHexInput` auto-prefixes non-empty values with `0x`; delegate sending and EOA nonce lookup must validate 32-byte hex format and secp256k1 range before calling `privateKeyToAccount`.
 
+### `apps/permit-demo`
+
+- Owns wallet-signature testing for ERC-2612 Permit, Dai-style Permit, and official Uniswap Permit2 flows.
+- Uses a fixed Conflux eSpace Testnet chain configuration (`71`) and keeps contract address edits in React state only; refreshing restores the deployed fixture defaults.
+- `requireWallet()` is used for wallet/signature requests without enforcing the connected chain, so wrong-chain Typed Data requests can be tested temporarily. `requireTestnetWallet()` gates mint, approve, and transaction writes to chain `71`.
+- `src/lib/typedData.ts` is the pure source of truth for ERC-2612 `Permit`, DAI-style `Permit`, Permit2 `PermitSingle`, `PermitBatch`, `PermitTransferFrom`, `PermitBatchTransferFrom`, and `PermitWitnessTransferFrom` typed data. The DAI flow uses the deployed DaiToken legacy domain without a version field, keeps `allowed` declared as `bool`, and allows native booleans or the custom strings `"true"`/`"false"` for wallet-signing compatibility tests. The SignatureTransfer typed data includes the signed `spender` field required by Permit2's hash even though the on-chain tuple passed to `PermitTestSpender` does not. The latest deployed `PermitTestSpender` wrapper exposes execution paths for DAI-style Permit plus the five Permit2 flows shown in the UI, and also contains a batch witness adapter for ABI-level testing. The UI presents all seven flows as tabs in one unified signing workflow, while Raw Typed Data remains a separate low-level signing panel.
+- `src/abi.ts` contains the minimal ABI extracted from the deployed fixture artifacts. Permit2 execution is disabled when `PermitTestSpender.permit2()` does not match the configured Permit2 address.
+- Token approve and Permit2 execution are separate actions so the page can intentionally reproduce missing-approve failures. AllowanceTransfer execution first performs read-only checks against the signed token/domain/spender, amount, expiry, nonce, Token→Permit2 allowance, and balance; a successful check is simulated and gas-estimated through the public client, then the resulting buffered gas limit is passed to the wallet write to avoid relying on the wallet provider's second estimate.
+- The Raw Typed Data panel keeps the entered JSON string unchanged and sends it directly through `eth_signTypedData_v4`; it does not parse, validate, rewrite, or broadcast a transaction.
+- The Permit Demo uses React Joyride for a first-visit six-step Tour. The signing workflow overview and wallet-signature button are separate steps/targets; the tour enables viewport-aware fixed positioning, uses a `scrollOffset` of `240` to clear the sticky header, and writes `eco-demo:permit-tour-seen` to `localStorage` when the automatic Tour starts so refreshes do not reopen it.
+- `LatestResultPanel` is the first child of the right/main column. `latestActivity` is a single in-memory latest-item state: a new transaction replaces the previous item, and a new error replaces the transaction. It is intentionally not persisted, so refresh clears it. Only the latest activity is shown; transaction balance/allowance snapshots are kept behind a collapsed details disclosure.
+
 ## Navigation
 
 - Home page selection happens at the root shell/home page.
 - Each demo has a top-left `返回首页` link.
 - Demo home links must work in both local shell and GitHub Pages subpath deployment.
+- New demos must be added to the local shell, Pages build list, and Pages smoke routes together.
 - Do not replace path-aware home link logic with absolute `/`.
 
 ## Change Rules
@@ -89,3 +103,7 @@ The repo has two layers:
 - Keep 4337 bulk private-key validation conditional on non-empty input. Empty bulk private key means wallet-only bulk send, not an error.
 - Keep private-key warnings visually strong and explicit.
 - Do not re-mask 4337 or 7702 private-key inputs unless explicitly requested; current test workflows expect visible keys.
+- Keep Permit deployed defaults and minimal ABI in `apps/permit-demo/src/config.ts` and `src/abi.ts`; update them together only when the external fixture deployment changes.
+- Keep Permit typed-data construction and range checks in `apps/permit-demo/src/lib/typedData.ts`; do not duplicate EIP-712 field definitions in React components.
+- Preserve the Permit chain policy: signing may run on a mismatched wallet chain for tests, but mint/approve/transaction writes require chain `71`.
+- Preserve explicit Token→Permit2 approval, raw Typed Data pass-through, and the Joyride target names/storage key/header offset unless the test workflow is intentionally changed.
