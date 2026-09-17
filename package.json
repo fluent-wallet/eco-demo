@@ -8,10 +8,12 @@
     "dev": "node scripts/dev.mjs",
     "dev:eip-4337": "pnpm --filter @eco-demo/eip-4337-demo dev",
     "dev:eip-7702": "pnpm --filter @eco-demo/eip-7702-demo dev",
+    "dev:permit": "pnpm --filter @eco-demo/permit-demo dev",
     "build": "node scripts/build-pages.mjs && pnpm test:pages",
     "build:apps": "pnpm --filter './apps/*' build",
     "lint": "pnpm --filter './apps/*' lint",
-    "test:fixtures": "pnpm --filter @eco-demo/eip-4337-demo test:fixtures",
+    "test:fixtures": "pnpm --filter @eco-demo/eip-4337-demo test:fixtures && pnpm --filter @eco-demo/permit-demo test:typed-data",
+    "test:permit-typed-data": "pnpm --filter @eco-demo/permit-demo test:typed-data",
     "test:pages": "node scripts/smoke-pages.mjs",
     "preview:eip-4337": "pnpm --filter @eco-demo/eip-4337-demo preview",
     "preview:eip-7702": "pnpm --filter @eco-demo/eip-7702-demo preview"

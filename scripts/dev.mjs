@@ -37,6 +37,21 @@ const processes = [
     ],
   },
   {
+    name: 'permit',
+    command: 'pnpm',
+    args: [
+      '--filter',
+      '@eco-demo/permit-demo',
+      'exec',
+      'vite',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      '3010',
+      '--strictPort',
+    ],
+  },
+  {
     name: 'eco-demo',
     command: 'pnpm',
     args: [

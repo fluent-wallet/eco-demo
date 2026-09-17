@@ -10,7 +10,7 @@ const routes = [
   {
     route: '/',
     entryFile: resolve(outputDir, 'index.html'),
-    expectedLinks: ['./eip-4337/', './eip-7702/'],
+    expectedLinks: ['./eip-4337/', './eip-7702/', './permit/'],
   },
   {
     route: '/eip-4337/',
@@ -20,6 +20,11 @@ const routes = [
   {
     route: '/eip-7702/',
     entryFile: resolve(outputDir, 'eip-7702/index.html'),
+    expectsAppShell: true,
+  },
+  {
+    route: '/permit/',
+    entryFile: resolve(outputDir, 'permit/index.html'),
     expectsAppShell: true,
   },
 ]
