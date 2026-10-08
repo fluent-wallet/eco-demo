@@ -1,0 +1,126 @@
+.eco-wallet-control {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.eco-wallet-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.eco-wallet-summary {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: min(100%, 360px);
+}
+
+.eco-wallet-label {
+  line-height: 1;
+}
+
+.eco-wallet-network {
+  flex: 0 0 auto;
+}
+
+.eco-wallet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 7, 10, 0.72);
+  padding: 18px;
+}
+
+.eco-wallet-modal {
+  width: min(420px, 100%);
+  max-height: min(720px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid rgba(141, 152, 165, 0.22);
+  border-radius: 8px;
+  background: #181e23;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+  padding: 18px;
+}
+
+.eco-wallet-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.eco-wallet-modal-heading h2 {
+  margin: 0;
+  color: #f4f7f8;
+  font-size: 18px;
+}
+
+.eco-wallet-modal-heading p {
+  margin: 6px 0 0;
+  color: #93a4ad;
+  font-size: 12px;
+}
+
+.eco-wallet-options {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.eco-wallet-option {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(141, 152, 165, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f7f8;
+  padding: 0 14px;
+  text-align: left;
+}
+
+.eco-wallet-option:hover:not(:disabled) {
+  border-color: rgba(91, 180, 167, 0.56);
+  background: rgba(91, 180, 167, 0.1);
+}
+
+.eco-wallet-option span:last-child {
+  color: #8fe3d7;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.eco-wallet-error {
+  max-width: 100%;
+  margin: 8px 0 0;
+  color: #ffb8b8;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .eco-wallet-control {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .eco-wallet-status {
+    justify-content: flex-start;
+  }
+}

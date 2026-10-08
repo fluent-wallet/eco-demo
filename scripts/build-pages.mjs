@@ -32,6 +32,14 @@ const apps = [
     targetDir: resolve(outputDir, 'permit'),
     href: './permit/',
   },
+  {
+    name: 'EIP-5792 Wallet Call API Demo',
+    description: 'Discover wallet capabilities, submit batches of calls, and inspect their execution status.',
+    packageName: '@eco-demo/eip-5792-demo',
+    sourceDir: resolve(root, 'apps/eip-5792-demo/dist'),
+    targetDir: resolve(outputDir, 'eip-5792'),
+    href: './eip-5792/',
+  },
 ]
 
 for (const app of apps) {
@@ -165,7 +173,7 @@ function renderHomePage(items) {
     <main>
       <header>
         <h1>eco-demo</h1>
-        <p>Small, focused demos for EIP-4337 and EIP-7702 workflows.</p>
+        <p>Small, focused demos for Ethereum wallet and Conflux eSpace workflows.</p>
       </header>
       <section class="grid" aria-label="Demo projects">
         ${cards}

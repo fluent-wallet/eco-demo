@@ -1,13 +1,12 @@
 {
-  "name": "@eco-demo/permit-demo",
+  "name": "@eco-demo/eip-5792-demo",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 3010",
-    "build": "tsc -b && vite build",
+    "dev": "vite --host 127.0.0.1 --port 3012 --strictPort",
+    "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "lint": "eslint .",
-    "test:typed-data": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/permitTypedData.fixtures.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,7 +14,6 @@
     "@tanstack/react-query": "^5.99.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-joyride": "^3.2.0",
     "viem": "^2.48.0",
     "wagmi": "^3.6.1"
   },

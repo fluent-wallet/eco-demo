@@ -8,6 +8,7 @@
 - Consider extracting 7702 private-key normalization/validation into a helper fixture if more input normalization is added.
 - Run a funded Conflux eSpace Testnet acceptance pass for the deployed Permit flows, including success, replay, expiry, wrong spender/amount, missing Token approval, batch, witness, and unordered-nonce cases.
 - Re-check Permit wallet-provider compatibility for all seven typed-data tabs after future contract redeployments or wallet/RPC upgrades.
+- Run a manual EIP-5792 wallet acceptance pass for capability reporting, atomic supported/ready/unsupported, batch send, pending/terminal status, and wallet status UI behavior.
 
 ## Engineering
 
@@ -16,14 +17,17 @@
 
 ## Recently Completed
 
+- Added copyable nine-field PackedUserOperation tuple arrays for prepared, signed single, and bulk 4337 requests, with preparation-stage placeholder signature labeling.
+
 - Added root `pnpm test:fixtures` aggregation for all current EIP-4337 fixture scripts.
-- Added post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, and their local HTML asset references.
+- Added post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, `/permit/`, `/eip-5792/`, and their local HTML asset references.
 - Added offline fixtures from real verified ConfluxScan contracts covering nested tuple/array encoding and overloaded methods, plus a manual browser check of their method labels.
 - Hardened ABI parsing for canonical tuple signatures, malformed ConfluxScan/cache entries, integer bit ranges, and empty fixed-length bytes.
 - Added the `/permit/` app and route with deployed PermitToken, NormalToken, DaiToken, Permit2, and PermitTestSpender defaults; address edits remain session-only.
 - Added pure builders and Node fixtures for ERC-2612, DAI-style Permit, Permit2 AllowanceTransfer, SignatureTransfer, batch, and witness typed data, including signature splitting and range checks.
 - Added the first-visit six-step React Joyride Tour, with separate signing-workflow and wallet-signature targets plus sticky-header-aware automatic scrolling.
 - Moved `最近结果` to the top of the Permit Demo main column and reduced it to one in-memory latest transaction/error activity, with optional collapsed execution details and no history persistence.
+- Added the `/eip-5792/` wallet-call workbench with direct RPC requests, call templates, raw params, capability/status inspection, and request logs.
 
 ## Constraints
 

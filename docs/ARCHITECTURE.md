@@ -2,32 +2,43 @@
 
 ## Overview
 
-The repo has two layers:
+The repo has three layers:
 
 - Source apps under `apps/*`
+- Shared workspace packages under `packages/*`
 - Root shell/build layer for unified local preview and production publishing
 
 ## Runtime Model
 
 ### Local Dev
 
-- `scripts/dev.mjs` starts four Vite processes.
+- `scripts/dev.mjs` starts five Vite processes.
 - Root shell runs on `127.0.0.1:4173`.
 - 4337 app runs on `127.0.0.1:5173`.
 - 7702 app runs on `127.0.0.1:3008`.
 - Permit app runs on `127.0.0.1:3010`.
-- Root `index.html` and the route shell pages (`eip-4337/index.html`, `eip-7702/index.html`, `permit/index.html`) embed app dev servers for one-entry preview.
+- EIP-5792 app runs on `127.0.0.1:3012`.
+- Root `index.html` and the route shell pages (`eip-4337/index.html`, `eip-7702/index.html`, `eip-5792/index.html`, `permit/index.html`) embed app dev servers for one-entry preview.
 
 ### Production Build
 
 - `scripts/build-pages.mjs` is the production route source of truth.
 - Each app builds its own `dist/`.
 - Root build script copies outputs into root `dist/eip-4337`, `dist/eip-7702`, and `dist/permit`.
+- Root build script copies the EIP-5792 app output into `dist/eip-5792`.
 - Root build script generates production homepage `dist/index.html`.
-- App card links are relative (`./eip-4337/`, `./eip-7702/`, `./permit/`) for GitHub Pages subpaths.
-- Root `pnpm build` then runs `scripts/smoke-pages.mjs`, which verifies all four route entries and their local HTML asset references.
+- App card links are relative (`./eip-4337/`, `./eip-7702/`, `./eip-5792/`, `./permit/`) for GitHub Pages subpaths.
+- Root `pnpm build` then runs `scripts/smoke-pages.mjs`, which verifies all five route entries and their local HTML asset references.
 
 ## App Boundaries
+
+### `packages/wallet-connect`
+
+- Owns the shared wagmi wallet connection UI, provider access hook, injected connector definitions, and Conflux eSpace chain definitions.
+- `WalletControl` provides the connect modal, connector selection, full account and connector summary, target-chain status, `wallet_switchEthereumChain` requests, and disconnect action. The wallet decides whether it supports the requested chain.
+- `useDemoWallet()` exposes the wagmi account and active connector's EIP-1193 provider for direct RPC integrations such as EIP-5792.
+- Future demos that need wallet connection should add this package as a workspace dependency, use `createDemoWalletConnectors()` in their Wagmi config, mount `WalletControl` in their topbar, and wrap the app in WagmiProvider plus QueryClientProvider.
+- EIP-4337, Permit, and EIP-5792 use this package. EIP-7702 currently has no wallet connection control and uses its existing private-key workflow.
 
 ### `apps/eip-4337-demo`
 
@@ -39,10 +50,7 @@ The repo has two layers:
 - `contractCalls.ts` is responsible for turning form strings/JSON into viem args. It validates arrays, fixed arrays, tuples with named or indexed fields, addresses, booleans, signed/unsigned integers, bytes/fixed bytes, and wraps encode failures with user-facing errors.
 - ConfluxScan ABI payload parsing is isolated in `parseConfluxScanAbiResponse`; HTTP querying remains in `fetchContractAbi`.
 - Nonce key validation lives in `src/lib/nonceKey.ts`; UserOperation nonce offset math lives in `src/lib/userOperationNonce.ts`.
-- Wallet UX is topbar-scoped:
-  - `WalletControl` opens a connect modal using configured wagmi connectors.
-  - Connected state shows connector name, full address, and chain status.
-  - Wrong-chain state offers a switch to the selected Conflux eSpace network: Testnet (`71`) or Mainnet (`1030`).
+- Wallet UX is topbar-scoped through the shared `WalletControl`; the selected network is Testnet (`71`) or Mainnet (`1030`).
 - Operation panel builds generic calls as `{ to, data, value }[]`.
 - Single mode uses the current ABI call, unless "single CFX transfer" is enabled.
 - Batch mode uses the explicit call list; "add current call" snapshots the current ABI form, and "add CFX transfer" snapshots transfer fields.
@@ -55,6 +63,7 @@ The repo has two layers:
 - Bulk UserOps use per-item nonce keys starting from the configured key. The UI prepares and signs all bulk requests first, then broadcasts the signed UserOps in parallel so repeated sends do not share the same nonce sequence.
 - Bulk UserOps always build a wallet-owner batch from the connected wallet A. `bulkOwnerPrivateKey` is optional; when it is non-empty, `App.tsx` validates it and adds a second private-key-owner batch, otherwise only wallet A is signed and sent.
 - `prepareSignedDemoUserOperation` prepares and signs a request; `sendPreparedDemoUserOperation` broadcasts an already signed request and waits for the receipt. Keep this split when changing bulk-send behavior.
+- `userOperationDisplay.ts` uses viem's `toPackedUserOperation` to expose EntryPoint-ordered nine-field tuple arrays. Prepared and signed single requests remain visible; bulk results retain signed requests even when broadcast fails. Decimal strings preserve uint256 precision, and preparation-stage placeholder signatures are labeled explicitly.
 - 4337 Owner private-key and bulk Owner private-key inputs are intentionally plain text. `src/lib/privateKey.ts` validates 32-byte hex format and secp256k1 range before private-key UserOperation prepare/send. Keep red private-key warnings prominent.
 - Testnet FooDapp remains the default sample via built-in ABI; Mainnet intentionally has no preset target contract.
 - Custom verified contracts require ConfluxScan ABI query for the selected network before method calls are enabled.
@@ -74,6 +83,7 @@ The repo has two layers:
 ### `apps/permit-demo`
 
 - Owns wallet-signature testing for ERC-2612 Permit, Dai-style Permit, and official Uniswap Permit2 flows.
+- Uses the shared `WalletControl` and connector config while preserving its temporary wrong-chain signing policy.
 - Uses a fixed Conflux eSpace Testnet chain configuration (`71`) and keeps contract address edits in React state only; refreshing restores the deployed fixture defaults.
 - `requireWallet()` is used for wallet/signature requests without enforcing the connected chain, so wrong-chain Typed Data requests can be tested temporarily. `requireTestnetWallet()` gates mint, approve, and transaction writes to chain `71`.
 - `src/lib/typedData.ts` is the pure source of truth for ERC-2612 `Permit`, DAI-style `Permit`, Permit2 `PermitSingle`, `PermitBatch`, `PermitTransferFrom`, `PermitBatchTransferFrom`, and `PermitWitnessTransferFrom` typed data. The DAI flow uses the deployed DaiToken legacy domain without a version field, keeps `allowed` declared as `bool`, and allows native booleans or the custom strings `"true"`/`"false"` for wallet-signing compatibility tests. The SignatureTransfer typed data includes the signed `spender` field required by Permit2's hash even though the on-chain tuple passed to `PermitTestSpender` does not. The latest deployed `PermitTestSpender` wrapper exposes execution paths for DAI-style Permit plus the five Permit2 flows shown in the UI, and also contains a batch witness adapter for ABI-level testing. The UI presents all seven flows as tabs in one unified signing workflow, while Raw Typed Data remains a separate low-level signing panel.
@@ -82,6 +92,15 @@ The repo has two layers:
 - The Raw Typed Data panel keeps the entered JSON string unchanged and sends it directly through `eth_signTypedData_v4`; it does not parse, validate, rewrite, or broadcast a transaction.
 - The Permit Demo uses React Joyride for a first-visit six-step Tour. The signing workflow overview and wallet-signature button are separate steps/targets; the tour enables viewport-aware fixed positioning, uses a `scrollOffset` of `240` to clear the sticky header, and writes `eco-demo:permit-tour-seen` to `localStorage` when the automatic Tour starts so refreshes do not reopen it.
 - `LatestResultPanel` is the first child of the right/main column. `latestActivity` is a single in-memory latest-item state: a new transaction replaces the previous item, and a new error replaces the transaction. It is intentionally not persisted, so refresh clears it. Only the latest activity is shown; transaction balance/allowance snapshots are kept behind a collapsed details disclosure.
+
+### `apps/eip-5792-demo`
+
+- Owns direct EIP-5792 Wallet Call API testing through the selected EIP-1193 wallet provider.
+- Uses shared Wagmi connection UX and `useDemoWallet()` to obtain the connected connector's EIP-1193 provider; provider account and chain events continue to update this RPC workbench.
+- Calls `wallet_getCapabilities` with the selected account and optional chain ID list. Capability results remain visible as formatted raw JSON and per-chain capability rows.
+- Builds `wallet_sendCalls` params in the form editor and sends raw JSON params unchanged in the raw editor. The form supports optional `from` and `id`, `chainId`, `version`, `atomicRequired`, ordered calls, and global/per-call capability objects.
+- Native-token and ERC-20 transfer templates generate call fields locally. They do not sign or send transactions until the user submits `wallet_sendCalls` to the wallet.
+- Tracks the returned batch ID, queries `wallet_getCallsStatus`, polls pending status when enabled, and invokes `wallet_showCallsStatus` on demand. Status responses and recent RPC params/results are kept in page memory only.
 
 ## Navigation
 

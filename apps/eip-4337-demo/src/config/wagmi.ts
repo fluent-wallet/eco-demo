@@ -1,26 +1,10 @@
 import { createConfig, http } from 'wagmi'
-import { injected } from 'wagmi/connectors'
-import type { EIP1193Provider } from 'viem'
+import { createDemoWalletConnectors } from '@eco-demo/wallet-connect'
 import { confluxESpaceMainnet, confluxESpaceTestnet } from './chains'
 
 export const wagmiConfig = createConfig({
   chains: [confluxESpaceTestnet, confluxESpaceMainnet],
-  connectors: [
-    injected({ target: 'metaMask' }),
-    injected({
-      target: {
-        id: 'fluent',
-        name: 'Fluent Wallet',
-        provider: () => {
-          const maybeWindow = window as typeof window & {
-            fluent?: EIP1193Provider
-          }
-          return maybeWindow.fluent
-        },
-      },
-    }),
-    injected(),
-  ],
+  connectors: createDemoWalletConnectors(),
   transports: {
     [confluxESpaceTestnet.id]: http(
       confluxESpaceTestnet.rpcUrls.default.http[0],

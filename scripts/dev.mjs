@@ -52,6 +52,21 @@ const processes = [
     ],
   },
   {
+    name: 'eip-5792',
+    command: 'pnpm',
+    args: [
+      '--filter',
+      '@eco-demo/eip-5792-demo',
+      'exec',
+      'vite',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      '3012',
+      '--strictPort',
+    ],
+  },
+  {
     name: 'eco-demo',
     command: 'pnpm',
     args: [
