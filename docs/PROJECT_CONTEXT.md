@@ -56,7 +56,7 @@ eco-demo/
   - runtime config, contracts, diagnostics, guide modal
   - ABI-driven write-call builder with network-aware ABI fetch/cache, defensive ABI structure validation, canonical nested-tuple signatures, method selection, argument parsing, payable values, and Chinese validation errors
   - prepare/send UserOperation
-  - copyable PackedUserOperation tuple arrays in EntryPoint field order for prepared, signed single, and bulk requests; uint256 values use decimal strings without precision loss
+  - copyable PackedUserOperation tuple arrays in EntryPoint field order for signed single and bulk requests, including a `复制 UserOperation` action without broadcasting; unsigned preparation does not expose signatures or tuple arrays; uint256 values use decimal strings without precision loss
   - executeBatch call list
   - CFX transfer calls
   - bulk UserOps
