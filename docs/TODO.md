@@ -17,7 +17,7 @@
 
 ## Recently Completed
 
-- Added copyable nine-field PackedUserOperation tuple arrays for prepared, signed single, and bulk 4337 requests, with preparation-stage placeholder signature labeling.
+- Added copyable nine-field PackedUserOperation tuple arrays for signed single and bulk 4337 requests, with a `复制 UserOperation` action and no placeholder signature export.
 
 - Added root `pnpm test:fixtures` aggregation for all current EIP-4337 fixture scripts.
 - Added post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, `/permit/`, `/eip-5792/`, and their local HTML asset references.

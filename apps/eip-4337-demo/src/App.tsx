@@ -45,6 +45,7 @@ import type {
   OwnerMode,
   PaymasterBalance,
   PreparedUserOperation,
+  SignedUserOperation,
   UserOperationResult,
 } from './types'
 
@@ -62,7 +63,7 @@ type BulkUserOperationResult = {
   nonceKey: string
   status: 'success' | 'error'
   result?: UserOperationResult
-  request?: PreparedUserOperation
+  request?: SignedUserOperation
   error?: string
 }
 type AbiCacheByNetwork = Record<string, Record<string, Abi>>
@@ -219,7 +220,7 @@ function GuideContent({ network }: { network: Eip4337Network }) {
           <li>按需开启 Paymaster 赞助。关闭后需要智能账户自身有足够 CFX 支付 gas。SimpleAccount 模式下，智能账户需要有足够 CFX 支付 gas，需要提前转入。</li>
           <li>在右侧用 ABI 选择写方法并填写参数；未缓存的合约地址需要先点击“查询 ABI”。</li>
           <li>单笔模式会直接使用当前调用；批量模式需要先把当前调用或 CFX 转账加入调用列表。</li>
-          <li>点击“准备 UserOperation”查看请求内容，确认无误后点击“发送 UserOperation”。</li>
+          <li>点击“准备 UserOperation”查看未签名请求；点击“复制 UserOperation”获取真实签名和可复制数组（不广播），或点击“发送 UserOperation”签名并提交。</li>
           <li>可以更改目标合约地址自定义操作内容，比如在一个 UserOp 中包含多个合约的多个调用。</li>
         </ol>
       </section>
@@ -564,6 +565,7 @@ function OperationPanel({
   status,
   error,
   onPrepare,
+  onSign,
   onSend,
   onBulkSend,
   onOpenGuide,
@@ -604,6 +606,7 @@ function OperationPanel({
   status: AsyncState
   error: string | null
   onPrepare: () => void
+  onSign: () => void
   onSend: () => void
   onBulkSend: () => void
   onOpenGuide: () => void
@@ -805,6 +808,9 @@ function OperationPanel({
         <button className="button" onClick={onPrepare} disabled={status === 'loading'}>
           准备 UserOperation
         </button>
+        <button className="button" onClick={onSign} disabled={status === 'loading'}>
+          复制 UserOperation
+        </button>
         <button className="button accent" onClick={onSend} disabled={status === 'loading'}>
           发送 UserOperation
         </button>
@@ -848,8 +854,10 @@ function OperationPanel({
             <span>{preparedIsSigned ? '已签名请求' : '已准备请求'}</span>
             <code>{compact(prepared.sender)}</code>
           </div>
-          <pre>{stringifyUserOperation(prepared)}</pre>
-          <PackedUserOperationsOutput requests={[prepared]} unsigned={!preparedIsSigned} />
+          <pre>{stringifyUserOperation(preparedIsSigned ? prepared : { ...prepared, signature: undefined })}</pre>
+          {preparedIsSigned
+            ? <PackedUserOperationsOutput requests={[prepared as SignedUserOperation]} />
+            : <p>请求尚未签名。点击“复制 UserOperation”获取真实签名；该操作不会广播。</p>}
         </div>
       )}
 
@@ -900,7 +908,7 @@ function OperationPanel({
   )
 }
 
-function PackedUserOperationsOutput({ requests, unsigned = false }: { requests: PreparedUserOperation[]; unsigned?: boolean }) {
+function PackedUserOperationsOutput({ requests }: { requests: SignedUserOperation[] }) {
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState(false)
   if (!requests.length) return null
@@ -922,7 +930,7 @@ function PackedUserOperationsOutput({ requests, unsigned = false }: { requests: 
       </div>
       <p><code>{PACKED_USER_OPERATION_FORMAT}</code></p>
       <p>字段顺序：{PACKED_USER_OPERATION_FIELDS}。uint256 使用十进制字符串，避免精度丢失。</p>
-      {unsigned && <p>准备阶段的 signature 为占位签名，尚未完成签名。</p>}
+      <p>signature 来自实际签名。数组对应当时的请求；广播后 nonce 可能已使用。Simple7702 首次委托或升级还需请求中的 authorization。</p>
       {copyError && <p role="alert">复制失败，请手动复制下方数组。</p>}
       <pre>{json}</pre>
     </div>
@@ -1481,10 +1489,12 @@ function App() {
     }
   }
 
-  const run = async (mode: 'prepare' | 'send') => {
+  const run = async (mode: 'prepare' | 'sign' | 'send') => {
     setStatus('loading')
     setError(null)
-    if (mode === 'send') setResult(null)
+    setResult(null)
+    setPrepared(null)
+    setPreparedIsSigned(false)
     setBulkResults([])
 
     try {
@@ -1498,6 +1508,15 @@ function App() {
         const request = await prepareSignedDemoUserOperation(params)
         setPrepared(request)
         setPreparedIsSigned(true)
+        if (mode === 'sign') {
+          try {
+            await navigator.clipboard.writeText(stringifyPackedUserOperations([request]))
+          } catch {
+            setError('签名已完成，但自动复制失败。请使用下方“复制数组”按钮或手动复制。')
+          }
+          setStatus('success')
+          return
+        }
         const sent = await sendPreparedDemoUserOperation({
           bundlerUrl: params.bundlerUrl,
           chain: params.chain,
@@ -1775,6 +1794,7 @@ function App() {
             status={status}
             error={error}
             onPrepare={() => void run('prepare')}
+            onSign={() => void run('sign')}
             onSend={() => void run('send')}
             onBulkSend={() => void runBulk()}
             onOpenGuide={() => setGuideOpen(true)}

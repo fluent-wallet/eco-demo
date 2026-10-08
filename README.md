@@ -6,7 +6,7 @@
 
 - `apps/eip-5792-demo`: EIP-5792 wallet capability, batch-call, and call-status RPC workbench.
 - `apps/eip-4337-demo`: EIP-4337 UserOperation demo with SimpleAccount and EIP-7702 account support.
-  Prepared, signed single, and bulk requests expose copyable PackedUserOperation arrays in `[address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes][]` format. Integers are decimal strings; preparation-stage signatures are placeholders.
+  Signed single and bulk requests expose copyable PackedUserOperation arrays in `[address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes][]` format. Integers are decimal strings. Use the `复制 UserOperation` action to obtain a real signature without broadcasting; unsigned preparation does not expose a signature or copyable array.
 - `apps/eip-7702-demo`: EIP-7702 authorization list signing and delegated EOA transaction demo.
 - `apps/permit-demo`: ERC-2612, Dai-style Permit, and Uniswap Permit2 wallet signature, approval, and transfer demo.
 
