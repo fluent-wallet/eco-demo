@@ -4,7 +4,9 @@
 
 ## Current Demos
 
+- `apps/eip-5792-demo`: EIP-5792 wallet capability, batch-call, and call-status RPC workbench.
 - `apps/eip-4337-demo`: EIP-4337 UserOperation demo with SimpleAccount and EIP-7702 account support.
+  Prepared, signed single, and bulk requests expose copyable PackedUserOperation arrays in `[address,uint256,bytes,bytes,bytes32,uint256,bytes32,bytes,bytes][]` format. Integers are decimal strings; preparation-stage signatures are placeholders.
 - `apps/eip-7702-demo`: EIP-7702 authorization list signing and delegated EOA transaction demo.
 - `apps/permit-demo`: ERC-2612, Dai-style Permit, and Uniswap Permit2 wallet signature, approval, and transfer demo.
 
@@ -15,22 +17,27 @@ eco-demo/
   apps/
     eip-4337-demo/
     eip-7702-demo/
+    eip-5792-demo/
     permit-demo/
+  packages/
+    wallet-connect/
   scripts/
     build-pages.mjs
     dev.mjs
   index.html
   eip-4337/index.html
   eip-7702/index.html
+  eip-5792/index.html
   permit/index.html
   package.json
   pnpm-workspace.yaml
 ```
 
 - `apps/*`: individual demo apps.
+- `packages/wallet-connect`: shared wallet connection UI, Wagmi connectors, provider hook, and Conflux eSpace chain definitions used by EIP-4337, Permit, and EIP-5792.
 - `scripts/dev.mjs`: starts the root local development shell and the demo dev servers.
 - `scripts/build-pages.mjs`: builds all published demos and assembles the GitHub Pages `dist/` output.
-- `index.html`, `eip-4337/index.html`, `eip-7702/index.html`, `permit/index.html`: local development shell pages. They are for source-driven local preview, not the production Pages output.
+- `index.html`, `eip-4337/index.html`, `eip-7702/index.html`, `eip-5792/index.html`, `permit/index.html`: local development shell pages. They are for source-driven local preview, not the production Pages output.
 
 ## Requirements
 
@@ -44,6 +51,8 @@ pnpm install
 ```
 
 ## Local Development
+
+The EIP-5792 app runs on `http://127.0.0.1:3012/` and is available through the root shell at `http://127.0.0.1:4173/eip-5792/`.
 
 Run the whole workspace locally:
 
@@ -64,6 +73,7 @@ Use the root shell when you want one entry point for all demos:
 - `http://127.0.0.1:4173/eip-4337/`: EIP-4337 demo
 - `http://127.0.0.1:4173/eip-7702/`: EIP-7702 demo
 - `http://127.0.0.1:4173/permit/`: Permit / Permit2 demo
+- `http://127.0.0.1:4173/eip-5792/`: EIP-5792 Wallet Call API demo
 
 The root shell embeds each demo's Vite dev server. Source changes in any app under `apps/*` are reflected by Vite HMR or by refreshing the page.
 
@@ -75,6 +85,7 @@ You can also run one demo directly:
 pnpm dev:eip-4337
 pnpm dev:eip-7702
 pnpm dev:permit
+pnpm dev:eip-5792
 ```
 
 ## Build
@@ -91,8 +102,9 @@ The generated `dist/` directory contains:
 - `/eip-4337/`: built EIP-4337 demo
 - `/eip-7702/`: built EIP-7702 demo
 - `/permit/`: built Permit / Permit2 demo
+- `/eip-5792/`: built EIP-5792 Wallet Call API demo
 
-The root build finishes by checking all four Pages routes and their local HTML asset references.
+The root build finishes by checking all five Pages routes and their local HTML asset references.
 
 Build individual apps without assembling Pages:
 

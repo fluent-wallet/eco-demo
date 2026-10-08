@@ -10,13 +10,8 @@ import {
   type Hex,
 } from 'viem'
 import { estimateContractGas, simulateContract } from 'viem/actions'
-import {
-  useAccount,
-  useConnect,
-  useDisconnect,
-  useSwitchChain,
-  useWalletClient,
-} from 'wagmi'
+import { WalletControl } from '@eco-demo/wallet-connect'
+import { useAccount, useWalletClient } from 'wagmi'
 import { permit2Abi, spenderAbi, tokenAbi } from './abi'
 import {
   DEFAULT_DEPLOYMENT,
@@ -328,81 +323,6 @@ function PanelHeading({
         {description && <p>{description}</p>}
       </div>
       {action}
-    </div>
-  )
-}
-
-function WalletControl() {
-  const [open, setOpen] = useState(false)
-  const { address, chainId, connector, isConnected } = useAccount()
-  const { connectors, connect, error, isPending } = useConnect()
-  const { disconnect } = useDisconnect()
-  const { switchChain, isPending: switchPending, error: switchError } =
-    useSwitchChain()
-  const expectedChain = chainId === confluxESpaceTestnet.id
-
-  useEffect(() => {
-    if (isConnected) setOpen(false)
-  }, [isConnected])
-
-  if (!isConnected || !address) {
-    return (
-      <div className="wallet-control">
-        <button className="button accent" onClick={() => setOpen(true)} type="button">
-          连接钱包
-        </button>
-        {open && (
-          <div className="wallet-menu">
-            <div className="wallet-menu-heading">
-              <strong>选择钱包</strong>
-              <button className="icon-button" onClick={() => setOpen(false)} type="button">
-                关闭
-              </button>
-            </div>
-            {connectors.map((item) => (
-              <button
-                className="wallet-option"
-                disabled={isPending}
-                key={item.uid}
-                onClick={() => connect({ connector: item })}
-                type="button"
-              >
-                <span>{item.name}</span>
-                <span>{isPending ? '连接中...' : '连接'}</span>
-              </button>
-            ))}
-            {error && <p className="error-text">{error.message}</p>}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div className="wallet-control">
-      <div className="wallet-status">
-        <div className="wallet-summary">
-          <span>{connector?.name ?? '钱包'}</span>
-          <code>{address}</code>
-        </div>
-        <span className={`pill ${expectedChain ? 'pill-success' : 'pill-error'}`}>
-          {expectedChain ? 'Conflux eSpace Testnet' : `链 ID ${chainId ?? '-'}`}
-        </span>
-        {!expectedChain && (
-          <button
-            className="button secondary"
-            disabled={switchPending}
-            onClick={() => switchChain({ chainId: confluxESpaceTestnet.id })}
-            type="button"
-          >
-            {switchPending ? '切换中...' : '切换到测试网'}
-          </button>
-        )}
-        <button className="button secondary" onClick={() => disconnect()} type="button">
-          断开
-        </button>
-      </div>
-      {switchError && <p className="error-text">{switchError.message}</p>}
     </div>
   )
 }
@@ -1795,7 +1715,11 @@ function App() {
         </div>
         <div className="topbar-right">
           <span className="network-badge">Conflux eSpace Testnet · 71</span>
-          <WalletControl />
+          <WalletControl
+            targetChainId={confluxESpaceTestnet.id}
+            targetChainName={confluxESpaceTestnet.name}
+            switchLabel="切换到测试网"
+          />
         </div>
       </header>
 

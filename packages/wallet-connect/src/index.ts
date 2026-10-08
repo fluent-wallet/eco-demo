@@ -1,0 +1,5 @@
+export { WalletControl } from './WalletControl'
+export type { WalletControlProps } from './WalletControl'
+export { createDemoWalletConnectors } from './connectors'
+export { confluxESpaceMainnet, confluxESpaceTestnet } from './chains'
+export { useDemoWallet } from './useDemoWallet'

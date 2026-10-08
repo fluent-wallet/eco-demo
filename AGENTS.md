@@ -10,7 +10,7 @@ Before changing code, read:
 
 ## Project Summary
 
-`eco-demo` is a pnpm monorepo for small Conflux eSpace workflow demos. Current scope is EIP-4337 account abstraction, EIP-7702 authorization/delegated transaction flows, and ERC-2612/DAI-style/Uniswap Permit2 wallet-signature testing. Local development uses a unified shell; production publishes a generated root `dist/` to GitHub Pages.
+`eco-demo` is a pnpm monorepo for small Conflux eSpace and wallet workflow demos. Current scope is EIP-4337 account abstraction, EIP-7702 authorization/delegated transaction flows, EIP-5792 Wallet Call API testing, and ERC-2612/DAI-style/Uniswap Permit2 wallet-signature testing. Local development uses a unified shell; production publishes a generated root `dist/` to GitHub Pages.
 
 ## Tech Stack
 
@@ -25,15 +25,19 @@ Before changing code, read:
 
 - `apps/eip-4337-demo`: 4337 workbench
 - `apps/eip-7702-demo`: 7702 workbench
+- `apps/eip-5792-demo`: wallet discovery, EIP-5792 capability/call/status RPC workbench
 - `apps/permit-demo`: ERC-2612, DAI-style Permit, and Permit2 signature/transfer workbench
+- `packages/wallet-connect`: shared wallet connection component, provider hook, connectors, and Conflux eSpace chains
 - `scripts/dev.mjs`: starts root shell on `4173` and app dev servers on fixed ports
 - `scripts/build-pages.mjs`: builds apps and assembles production `dist/`
-- `index.html`, `eip-4337/index.html`, `eip-7702/index.html`, `permit/index.html`: local shell pages only
+- `index.html`, `eip-4337/index.html`, `eip-7702/index.html`, `eip-5792/index.html`, `permit/index.html`: local shell pages only
 - `docs/`: AI handoff context
 
 ## Current State
 
 - Root shell and Pages build are wired.
+- EIP-5792 demo is mounted at `/eip-5792/`. It uses the shared `@eco-demo/wallet-connect` session and sends `wallet_getCapabilities`, `wallet_sendCalls`, `wallet_getCallsStatus`, and `wallet_showCallsStatus` directly through the connected EIP-1193 provider. It displays request/response JSON, standard status codes, and RPC errors. Call requests support an editable form, raw JSON params, native-token and ERC-20 transfer templates, per-call/global capabilities, custom IDs, and `atomicRequired`.
+- EIP-4337, Permit, and EIP-5792 share `packages/wallet-connect` for the wallet modal, connection state, disconnect, chain status/switch requests, and common connectors. New wallet-enabled demos should reuse `WalletControl`, `useDemoWallet`, and `createDemoWalletConnectors()` and mount their app under WagmiProvider and QueryClientProvider.
 - Permit demo is mounted at `/permit/`. It defaults to Conflux eSpace Testnet (chain ID `71`) and the deployed PermitToken, NormalToken, DaiToken, official Permit2, and latest PermitTestSpender fixtures. Address edits are React state only and reset after refresh.
 - Permit signing intentionally remains available on a mismatched wallet chain for compatibility/negative tests; mint, Token→Permit2 approve, and all on-chain execution require chain `71`.
 - Permit typed-data builders cover ERC-2612 `Permit`, DAI-style `Permit`, Permit2 `PermitSingle`, `PermitBatch`, `PermitTransferFrom`, `PermitBatchTransferFrom`, and `PermitWitnessTransferFrom`. The UI shows domain/types/primaryType/message, copyable RPC JSON, raw signatures, and v/r/s where applicable; Raw Typed Data is sent unchanged through `eth_signTypedData_v4` and is not parsed or broadcast automatically.
@@ -53,7 +57,7 @@ Before changing code, read:
 - EIP-7702 tx sender and EOA private-key inputs are intentionally shown as plain text for test workflow visibility. Non-empty key input is normalized in `App.tsx` by auto-prefixing `0x` when missing; nonce lookup and delegate sending validate 32-byte hex format and secp256k1 range before calling `privateKeyToAccount`.
 - All demos expose top-left `返回首页` links that work in local dev and GitHub Pages subpath deployments.
 - Production homepage labels the first app as `EIP-4337 Demo`.
-- `pnpm build` runs post-build smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, and `/permit/`, including their local HTML asset references.
+- `pnpm build` runs post-build smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, `/eip-5792/`, and `/permit/`, including their local HTML asset references.
 
 ## Commands
 
@@ -61,6 +65,7 @@ Before changing code, read:
 pnpm install
 pnpm dev
 pnpm dev:permit
+pnpm dev:eip-5792
 pnpm lint
 pnpm build
 pnpm test:fixtures

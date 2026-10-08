@@ -1,35 +1,6 @@
-import { defineChain } from 'viem'
+import { confluxESpaceMainnet, confluxESpaceTestnet } from '@eco-demo/wallet-connect'
 
-export const confluxESpaceTestnet = defineChain({
-  id: 71,
-  name: 'Conflux eSpace Testnet',
-  nativeCurrency: { name: 'CFX', symbol: 'CFX', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://evmtestnet.confluxrpc.com'] },
-  },
-  blockExplorers: {
-    default: {
-      name: 'ConfluxScan',
-      url: 'https://evmtestnet.confluxscan.org',
-    },
-  },
-  testnet: true,
-})
-
-export const confluxESpaceMainnet = defineChain({
-  id: 1030,
-  name: 'Conflux eSpace Mainnet',
-  nativeCurrency: { name: 'CFX', symbol: 'CFX', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://evm.confluxrpc.com'] },
-  },
-  blockExplorers: {
-    default: {
-      name: 'ConfluxScan',
-      url: 'https://evm.confluxscan.org',
-    },
-  },
-})
+export { confluxESpaceMainnet, confluxESpaceTestnet }
 
 export function getExplorerTxUrl(
   hash: string,

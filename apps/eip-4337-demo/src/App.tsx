@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  useAccount,
-  useConnect,
-  useDisconnect,
-  useSwitchChain,
-  useWalletClient,
-} from 'wagmi'
+import { WalletControl } from '@eco-demo/wallet-connect'
+import { useWalletClient } from 'wagmi'
 import {
   isAddress,
   parseEther,
@@ -38,11 +33,11 @@ import {
   normalizeAddress,
   prepareDemoUserOperation,
   prepareSignedDemoUserOperation,
-  sendDemoUserOperation,
   sendPreparedDemoUserOperation,
   stringifyUserOperation,
 } from './lib/accountAbstraction'
 import { parseNonceKey } from './lib/nonceKey'
+import { PACKED_USER_OPERATION_FIELDS, PACKED_USER_OPERATION_FORMAT, stringifyPackedUserOperations } from './lib/userOperationDisplay'
 import { normalizePrivateKey } from './lib/privateKey'
 import { needsSmartAccountAuthorization } from './lib/smartAccountAuthorization'
 import type {
@@ -67,6 +62,7 @@ type BulkUserOperationResult = {
   nonceKey: string
   status: 'success' | 'error'
   result?: UserOperationResult
+  request?: PreparedUserOperation
   error?: string
 }
 type AbiCacheByNetwork = Record<string, Record<string, Abi>>
@@ -208,104 +204,6 @@ function StatusPill({ state }: { state: AsyncState }) {
   }[state]
 
   return <span className={`pill pill-${state}`}>{label}</span>
-}
-
-function WalletControl({ network }: { network: Eip4337Network }) {
-  const [walletModalOpen, setWalletModalOpen] = useState(false)
-  const { connectors, connect, error: connectError, isPending } = useConnect()
-  const { address, chainId, isConnected, connector } = useAccount()
-  const { disconnect } = useDisconnect()
-  const {
-    error: switchError,
-    isPending: switchPending,
-    switchChain,
-  } = useSwitchChain()
-  const isExpectedChain = chainId === network.chain.id
-
-  useEffect(() => {
-    if (isConnected) setWalletModalOpen(false)
-  }, [isConnected])
-
-  return (
-    <div className="wallet-control">
-      {isConnected ? (
-        <div className="wallet-status">
-          <div className="wallet-summary">
-            <span className="wallet-label">{connector?.name ?? '钱包'}</span>
-            <code>{address}</code>
-          </div>
-          <span className={`pill ${isExpectedChain ? 'pill-success' : 'pill-error'}`}>
-            {isExpectedChain ? network.chain.name : `链 ID ${chainId ?? '-'}`}
-          </span>
-          {!isExpectedChain && (
-            <button
-              className="button secondary"
-              disabled={switchPending}
-              onClick={() => switchChain({ chainId: network.chain.id })}
-              type="button"
-            >
-              {switchPending ? '切换中...' : '切换网络'}
-            </button>
-          )}
-          <button
-            className="button secondary"
-            onClick={() => disconnect()}
-            type="button"
-          >
-            断开
-          </button>
-        </div>
-      ) : (
-        <button
-          className="button accent wallet-connect-button"
-          onClick={() => setWalletModalOpen(true)}
-          type="button"
-        >
-          连接钱包
-        </button>
-      )}
-      {switchError && <p className="wallet-error">{switchError.message}</p>}
-      {walletModalOpen && (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            aria-labelledby="wallet-modal-title"
-            aria-modal="true"
-            className="wallet-modal"
-            role="dialog"
-          >
-            <div className="modal-heading">
-              <div>
-                <h2 id="wallet-modal-title">连接钱包</h2>
-                <p>选择一个浏览器钱包连接到 4337 调试台。</p>
-              </div>
-              <button
-                className="icon-button"
-                onClick={() => setWalletModalOpen(false)}
-                type="button"
-              >
-                关闭
-              </button>
-            </div>
-            <div className="wallet-options">
-              {connectors.map((item) => (
-                <button
-                  className="wallet-option"
-                  disabled={isPending}
-                  key={item.uid}
-                  onClick={() => connect({ connector: item })}
-                  type="button"
-                >
-                  <span>{item.name}</span>
-                  <span>{isPending ? '连接中...' : '连接'}</span>
-                </button>
-              ))}
-            </div>
-            {connectError && <p className="wallet-error">{connectError.message}</p>}
-          </section>
-        </div>
-      )}
-    </div>
-  )
 }
 
 function GuideContent({ network }: { network: Eip4337Network }) {
@@ -656,6 +554,7 @@ function OperationPanel({
   onAddAdvancedTransfer,
   onRemoveAdvancedCall,
   prepared,
+  preparedIsSigned,
   result,
   bulkCount,
   setBulkCount,
@@ -695,6 +594,7 @@ function OperationPanel({
   onAddAdvancedTransfer: () => void
   onRemoveAdvancedCall: (id: string) => void
   prepared: PreparedUserOperation | null
+  preparedIsSigned: boolean
   result: UserOperationResult | null
   bulkCount: string
   setBulkCount: (value: string) => void
@@ -945,10 +845,11 @@ function OperationPanel({
       {prepared && (
         <div className="output">
           <div className="output-heading">
-            <span>已准备请求</span>
+            <span>{preparedIsSigned ? '已签名请求' : '已准备请求'}</span>
             <code>{compact(prepared.sender)}</code>
           </div>
           <pre>{stringifyUserOperation(prepared)}</pre>
+          <PackedUserOperationsOutput requests={[prepared]} unsigned={!preparedIsSigned} />
         </div>
       )}
 
@@ -992,9 +893,39 @@ function OperationPanel({
               </div>
             ))}
           </div>
+          <PackedUserOperationsOutput requests={bulkResults.flatMap((item) => item.request ? [item.request] : [])} />
         </div>
       )}
     </section>
+  )
+}
+
+function PackedUserOperationsOutput({ requests, unsigned = false }: { requests: PreparedUserOperation[]; unsigned?: boolean }) {
+  const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
+  if (!requests.length) return null
+  const json = stringifyPackedUserOperations(requests)
+  return (
+    <div className="output">
+      <div className="output-heading">
+        <span>PackedUserOperation 元组数组</span>
+        <button type="button" onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(json)
+            setCopied(true)
+            setCopyError(false)
+            setTimeout(() => setCopied(false), 2000)
+          } catch {
+            setCopyError(true)
+          }
+        }}>{copied ? '已复制' : '复制数组'}</button>
+      </div>
+      <p><code>{PACKED_USER_OPERATION_FORMAT}</code></p>
+      <p>字段顺序：{PACKED_USER_OPERATION_FIELDS}。uint256 使用十进制字符串，避免精度丢失。</p>
+      {unsigned && <p>准备阶段的 signature 为占位签名，尚未完成签名。</p>}
+      {copyError && <p role="alert">复制失败，请手动复制下方数组。</p>}
+      <pre>{json}</pre>
+    </div>
   )
 }
 
@@ -1043,6 +974,7 @@ function App() {
   const [abiStatus, setAbiStatus] = useState<AbiLoadState>('idle')
   const [abiError, setAbiError] = useState<string | null>(null)
   const [prepared, setPrepared] = useState<PreparedUserOperation | null>(null)
+  const [preparedIsSigned, setPreparedIsSigned] = useState(false)
   const [result, setResult] = useState<UserOperationResult | null>(null)
   const [bulkCount, setBulkCount] = useState('3')
   const [bulkOwnerPrivateKey, setBulkOwnerPrivateKey] = useState('')
@@ -1561,10 +1493,18 @@ function App() {
       if (mode === 'prepare') {
         const nextPrepared = await prepareDemoUserOperation(params)
         setPrepared(nextPrepared)
+        setPreparedIsSigned(false)
       } else {
-        const sent = await sendDemoUserOperation(params)
+        const request = await prepareSignedDemoUserOperation(params)
+        setPrepared(request)
+        setPreparedIsSigned(true)
+        const sent = await sendPreparedDemoUserOperation({
+          bundlerUrl: params.bundlerUrl,
+          chain: params.chain,
+          entryPointAddress: params.entryPointAddress,
+          request,
+        })
         setResult(sent)
-        setPrepared(null)
         await refreshDiagnostics()
       }
       setStatus('success')
@@ -1690,6 +1630,7 @@ function App() {
             nonceKey: item.nonceKey,
             status: result ? 'success' : 'error',
             result,
+            request: item.request,
             error,
           }
         }
@@ -1751,7 +1692,10 @@ function App() {
             <p>{network.chain.name} 账户抽象调试台</p>
           </div>
         </div>
-        <WalletControl network={network} />
+        <WalletControl
+          targetChainId={network.chain.id}
+          targetChainName={network.chain.name}
+        />
       </header>
 
       <main className="layout">
@@ -1821,6 +1765,7 @@ function App() {
             onAddAdvancedTransfer={addAdvancedBatchTransfer}
             onRemoveAdvancedCall={removeAdvancedBatchCall}
             prepared={prepared}
+            preparedIsSigned={preparedIsSigned}
             result={result}
             bulkCount={bulkCount}
             setBulkCount={setBulkCount}

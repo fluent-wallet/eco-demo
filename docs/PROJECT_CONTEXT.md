@@ -8,6 +8,7 @@ Current product scope:
 
 - EIP-4337 account abstraction workbench
 - EIP-7702 authorization/delegated transaction workbench
+- EIP-5792 Wallet Call API testing workbench
 - ERC-2612 / DAI-style / Uniswap Permit2 wallet-signature test workbench
 
 ## Stack
@@ -26,7 +27,10 @@ eco-demo/
   apps/
     eip-4337-demo/
     eip-7702-demo/
+    eip-5792-demo/
     permit-demo/
+  packages/
+    wallet-connect/
   scripts/
     dev.mjs
     build-pages.mjs
@@ -34,13 +38,17 @@ eco-demo/
   index.html
   eip-4337/index.html
   eip-7702/index.html
+  eip-5792/index.html
   permit/index.html
 ```
 
 ## Completed Modules
 
+- Shared `@eco-demo/wallet-connect` package: reusable Wagmi `WalletControl`, `useDemoWallet` provider hook, common MetaMask/Fluent/generic injected connectors, and Conflux eSpace chain definitions. EIP-4337, Permit, and EIP-5792 use the same connection modal, connected summary, network status/switch request, and disconnect control. Switching sends `wallet_switchEthereumChain` through the connected provider; the wallet decides whether it knows the requested chain. New wallet-enabled demos should use this package.
+- EIP-5792 demo: uses the shared wallet connection session and calls capability/send/status RPC methods directly through the selected EIP-1193 provider. It supports editable and raw call params, native-token/ERC-20 templates, status polling, receipts, and an in-memory request log. The app is mounted at /eip-5792/ in local and production routing.
+
 - Root workspace commands, local shell, and Pages build flow.
-- Post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, `/permit/`, and their local HTML asset references.
+- Post-build Pages smoke checks for `/`, `/eip-4337/`, `/eip-7702/`, `/permit/`, `/eip-5792/`, and their local HTML asset references.
 - 4337 demo:
   - topbar wallet control with multi-wallet connect modal
   - full connected address display
@@ -48,6 +56,7 @@ eco-demo/
   - runtime config, contracts, diagnostics, guide modal
   - ABI-driven write-call builder with network-aware ABI fetch/cache, defensive ABI structure validation, canonical nested-tuple signatures, method selection, argument parsing, payable values, and Chinese validation errors
   - prepare/send UserOperation
+  - copyable PackedUserOperation tuple arrays in EntryPoint field order for prepared, signed single, and bulk requests; uint256 values use decimal strings without precision loss
   - executeBatch call list
   - CFX transfer calls
   - bulk UserOps
@@ -101,9 +110,9 @@ eco-demo/
 - User-facing copy defaults to Chinese.
 - Local dev and production build stay separate by design.
 - Generated `dist/` is output only; source of truth lives in app code and scripts.
-- 4337 wallet connection belongs in the topbar, not a sidebar panel.
-- 4337 wallet modal should expose all configured wagmi connectors.
-- 4337 connected wallet status shows the full address, connector name, and chain status.
+- Wallet connection UI and connector definitions live in `packages/wallet-connect`; use its `WalletControl` and `createDemoWalletConnectors()` instead of adding per-app copies.
+- Wallet-enabled demos wrap the app in WagmiProvider and QueryClientProvider. Use `useDemoWallet()` when a demo needs the connected connector's EIP-1193 provider for direct wallet RPC methods.
+- Shared wallet status shows the full address, connector name, current chain, supported target-chain switching, and a disconnect action.
 - 4337 supports Conflux eSpace Testnet (chain ID `71`) and Mainnet (chain ID `1030`). Testnet is the default, with Bundler `https://bundler-testnet.confluxrpc.org`; Mainnet uses `https://bundler.confluxrpc.org`.
 - Both networks use EntryPoint v0.8 `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108`. Mainnet Simple7702 uses implementation `0xF493e19B292855B467D7806b2CCF8c078518d43c`.
 - Mainnet defaults to Paymaster `0xc341DFf0A3A0d05A33dE5a2df898664F0DB3472b`, so sponsorship starts enabled. Sepolia remains unsupported.

@@ -15,10 +15,12 @@
     "test:private-key": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/privateKey.fixtures.mjs",
     "test:smart-account-authorization": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/smartAccountAuthorization.fixtures.mjs",
     "test:user-operation-nonce": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/userOperationNonce.fixtures.mjs",
-    "test:fixtures": "pnpm run test:conflux-scan-abi && pnpm run test:contract-calls && pnpm run test:real-world-contract-calls && pnpm run test:nonce-key && pnpm run test:paymaster-sponsorship && pnpm run test:private-key && pnpm run test:smart-account-authorization && pnpm run test:user-operation-nonce",
+    "test:user-operation-display": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/userOperationDisplay.fixtures.mjs",
+    "test:fixtures": "pnpm run test:conflux-scan-abi && pnpm run test:contract-calls && pnpm run test:real-world-contract-calls && pnpm run test:nonce-key && pnpm run test:paymaster-sponsorship && pnpm run test:private-key && pnpm run test:smart-account-authorization && pnpm run test:user-operation-nonce && pnpm run test:user-operation-display",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@eco-demo/wallet-connect": "workspace:*",
     "@tanstack/react-query": "^5.99.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
